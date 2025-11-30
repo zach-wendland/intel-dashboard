@@ -51,46 +51,33 @@ interface SourceItem {
 }
 
 // --- CONFIGURATION: Live RSS Endpoints ---
+// Only includes feeds that are currently accessible via rss2json.com proxy
 const LIVE_FEEDS: SourceItem[] = [
-  { 
-    id: 'tac', 
-    name: 'The American Conservative', 
-    url: 'https://www.theamericanconservative.com/feed/', 
-    category: 'INTELLECTUALS',
-    topic_map: 'Politics'
-  },
-  { 
-    id: 'breitbart', 
-    name: 'Breitbart News', 
-    url: 'http://feeds.feedburner.com/breitbart', 
+  {
+    id: 'breitbart',
+    name: 'Breitbart News',
+    url: 'http://feeds.feedburner.com/breitbart',
     category: 'BROADCAST',
     topic_map: 'Culture War'
   },
-  { 
-    id: 'antiwar', 
-    name: 'Antiwar.com', 
-    url: 'https://www.antiwar.com/blog/feed/', 
+  {
+    id: 'antiwar',
+    name: 'Antiwar.com',
+    url: 'https://www.antiwar.com/blog/feed/',
     category: 'LIBERTARIANS',
     topic_map: 'Foreign Policy'
   },
-  { 
-    id: 'lew', 
-    name: 'LewRockwell.com', 
-    url: 'https://www.lewrockwell.com/feed/', 
-    category: 'LIBERTARIANS',
-    topic_map: 'Economics'
-  },
-  { 
-    id: 'zerohedge', 
-    name: 'ZeroHedge', 
-    url: 'http://feeds.feedburner.com/zerohedge/feed', 
+  {
+    id: 'zerohedge',
+    name: 'ZeroHedge',
+    url: 'http://feeds.feedburner.com/zerohedge/feed',
     category: 'BROADCAST',
     topic_map: 'Finance'
   },
   {
     id: 'canon',
     name: 'Canon Press (Blog)',
-    url: 'https://dougwils.com/feed', 
+    url: 'https://dougwils.com/feed',
     category: 'THEOLOGIANS',
     topic_map: 'Religion'
   }
