@@ -50,9 +50,32 @@ interface SourceItem {
   topic_map?: string;
 }
 
+// --- RSS Feed Type Definition ---
+interface RSSItem {
+  title?: string;
+  pubDate?: string;
+  link?: string;
+  description?: string;
+  content?: string;
+}
+
+interface RSSResponse {
+  status: 'ok' | 'error';
+  message?: string;
+  items?: RSSItem[];
+}
+
+type FeedStatus = 'ok' | 'error' | 'loading';
+
 // --- CONFIGURATION: Live RSS Endpoints ---
-// Only includes feeds that are currently accessible via rss2json.com proxy
 const LIVE_FEEDS: SourceItem[] = [
+  {
+    id: 'tac',
+    name: 'The American Conservative',
+    url: 'https://www.theamericanconservative.com/feed/',
+    category: 'INTELLECTUALS',
+    topic_map: 'Politics'
+  },
   {
     id: 'breitbart',
     name: 'Breitbart News',
@@ -66,6 +89,13 @@ const LIVE_FEEDS: SourceItem[] = [
     url: 'https://www.antiwar.com/blog/feed/',
     category: 'LIBERTARIANS',
     topic_map: 'Foreign Policy'
+  },
+  {
+    id: 'lew',
+    name: 'LewRockwell.com',
+    url: 'https://www.lewrockwell.com/feed/',
+    category: 'LIBERTARIANS',
+    topic_map: 'Economics'
   },
   {
     id: 'zerohedge',
@@ -178,58 +208,133 @@ const NARRATIVE_DATA = [
   { topic: "Economy", value: 55 },
 ];
 
+// Helper: Validate URLs to prevent XSS
+function isValidUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+// Helper: Validate and parse dates
+function parseDate(dateString?: string): Date | null {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  return isNaN(date.getTime()) ? null : date;
+}
+
 export default function IntelligenceDashboard() {
   const [activeTab, setActiveTab] = useState<string>('feed');
-  // FIX: We now explicitly define the state type as an array of FeedItem objects
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [filter, setFilter] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [feedStatus, setFeedStatus] = useState<Record<string | number, FeedStatus>>({});
+  const [errorMessages, setErrorMessages] = useState<Record<string | number, string>>({});
 
-  // Live RSS Fetcher
+  // Live RSS Fetcher with improved error handling
   const fetchLiveFeed = async () => {
     setIsRefreshing(true);
+    setErrorMessages({});
+    const newStatus: Record<string | number, FeedStatus> = {};
+    const errors: Record<string | number, string> = {};
     let allItems: FeedItem[] = [];
 
-    // We fetch multiple feeds in parallel
+    // Fetch multiple feeds in parallel with timeout protection
     const promises = LIVE_FEEDS.map(async (source) => {
+      newStatus[source.id] = 'loading';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
       try {
-        // Using rss2json proxy to avoid CORS issues in client-side React
-        const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`);
-        const data = await response.json();
-        
-        if (data.status === 'ok') {
-          // FIX: Explicitly typing the map parameters to avoid implicit 'any' error
-          return data.items.map((item: any, index: number) => ({
-            id: `${source.id}-${index}`,
-            title: item.title,
-            source: source.name,
-            topic: source.topic_map || 'General',
-            time: new Date(item.pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            rawDate: new Date(item.pubDate),
-            url: item.link,
-            velocity: Math.floor(Math.random() * (100 - 40) + 40), // Simulated velocity for now
-            category: source.category
-          }));
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`;
+        const response = await fetch(apiUrl, { signal: controller.signal });
+
+        if (!response.ok) {
+          newStatus[source.id] = 'error';
+          errors[source.id] = `HTTP ${response.status}`;
+          console.warn(`${source.name}: HTTP ${response.status}`);
+          return [];
+        }
+
+        const data: RSSResponse = await response.json();
+
+        if (data.status === 'ok' && data.items && data.items.length > 0) {
+          newStatus[source.id] = 'ok';
+
+          // Filter and validate items - only process valid entries
+          const validItems = data.items
+            .filter(item => item.title && item.link && item.pubDate)
+            .map((item: RSSItem, index: number) => {
+              const pubDate = parseDate(item.pubDate);
+
+              if (!pubDate) {
+                console.warn(`${source.name}: Invalid date format - ${item.pubDate}`);
+                return null;
+              }
+
+              if (!isValidUrl(item.link || '')) {
+                console.warn(`${source.name}: Invalid URL - ${item.link}`);
+                return null;
+              }
+
+              return {
+                id: `${source.id}-${index}`,
+                title: item.title || 'Untitled',
+                source: source.name,
+                topic: source.topic_map || 'General',
+                time: pubDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                rawDate: pubDate,
+                url: item.link,
+                velocity: Math.floor(Math.random() * (100 - 40) + 40),
+                category: source.category
+              };
+            })
+            .filter((item): item is FeedItem => item !== null);
+
+          return validItems;
+        } else {
+          newStatus[source.id] = 'error';
+          errors[source.id] = data.message || 'No items returned';
+          console.warn(`${source.name}: ${data.message || 'No items'}`);
+          return [];
+        }
+      } catch (error) {
+        newStatus[source.id] = 'error';
+
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          errors[source.id] = 'Request timeout (10s)';
+          console.warn(`${source.name}: Timeout`);
+        } else {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          errors[source.id] = errorMsg.substring(0, 50);
+          console.error(`${source.name}: ${errorMsg}`);
         }
         return [];
-      } catch (error) {
-        console.error(`Failed to fetch ${source.name}`, error);
-        return [];
+      } finally {
+        clearTimeout(timeoutId);
       }
     });
 
     try {
       const results = await Promise.all(promises);
       allItems = results.flat();
-      
+
       // Sort by newest first
       allItems.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
-      
+
       setFeed(allItems);
-      setLastUpdated(new Date().toLocaleTimeString());
+      setFeedStatus(newStatus);
+      if (Object.keys(errors).length > 0) {
+        setErrorMessages(errors);
+      }
+      setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
     } catch (e) {
       console.error("Global fetch error", e);
+      setFeedStatus(newStatus);
+      setErrorMessages(errors);
     } finally {
       setIsRefreshing(false);
     }
@@ -297,12 +402,43 @@ export default function IntelligenceDashboard() {
                {isRefreshing ? 'SYNCING...' : 'REFRESH INTEL'}
              </button>
 
-             <div className="flex items-center gap-2 px-3 py-1.5 bg-green-900/20 border border-green-500/30 rounded text-xs text-green-400">
+             <div className="flex items-center gap-2 px-3 py-1.5 rounded text-xs border"
+               style={{
+                 backgroundColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
+                   ? 'rgb(20 83 11 / 0.2)'
+                   : Object.values(feedStatus).filter(s => s === 'ok').length > 0
+                   ? 'rgb(120 53 15 / 0.2)'
+                   : 'rgb(127 29 29 / 0.2)',
+                 borderColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
+                   ? 'rgb(34 197 94 / 0.3)'
+                   : Object.values(feedStatus).filter(s => s === 'ok').length > 0
+                   ? 'rgb(217 119 6 / 0.3)'
+                   : 'rgb(239 68 68 / 0.3)',
+                 color: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
+                   ? '#22c55e'
+                   : Object.values(feedStatus).filter(s => s === 'ok').length > 0
+                   ? '#d97706'
+                   : '#ef4444'
+               }}>
                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  <span className={`${isRefreshing ? 'animate-spin' : 'animate-pulse'} absolute inline-flex h-full w-full rounded-full opacity-75`}
+                    style={{
+                      backgroundColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
+                        ? 'rgb(34 197 94)'
+                        : Object.values(feedStatus).filter(s => s === 'ok').length > 0
+                        ? 'rgb(217 119 6)'
+                        : 'rgb(239 68 68)'
+                    }}></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2"
+                    style={{
+                      backgroundColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
+                        ? 'rgb(34 197 94)'
+                        : Object.values(feedStatus).filter(s => s === 'ok').length > 0
+                        ? 'rgb(217 119 6)'
+                        : 'rgb(239 68 68)'
+                    }}></span>
                 </span>
-                AGENTS ACTIVE: 55
+                FEEDS: {Object.values(feedStatus).filter(s => s === 'ok').length}/{LIVE_FEEDS.length}
              </div>
           </div>
         </div>
@@ -384,6 +520,26 @@ export default function IntelligenceDashboard() {
               </div>
 
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
+                {Object.keys(errorMessages).length > 0 && (
+                  <div className="bg-red-900/20 border-b border-red-800/50 p-4 text-sm">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-red-300 font-semibold mb-2">Feed Errors:</p>
+                        <ul className="text-red-200 space-y-1 text-xs">
+                          {Object.entries(errorMessages).map(([feedId, error]) => {
+                            const feed = LIVE_FEEDS.find(f => f.id === feedId);
+                            return (
+                              <li key={feedId}>
+                                <span className="text-red-300">{feed?.name}:</span> {error}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {feed.length === 0 && !isRefreshing && (
                    <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                      <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
