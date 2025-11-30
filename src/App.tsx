@@ -208,6 +208,8 @@ const NARRATIVE_DATA = [
   { topic: "Economy", value: 55 },
 ];
 
+// ============ UTILITY FUNCTIONS ============
+
 // Helper: Validate URLs to prevent XSS
 function isValidUrl(urlString: string): boolean {
   try {
@@ -223,6 +225,71 @@ function parseDate(dateString?: string): Date | null {
   if (!dateString) return null;
   const date = new Date(dateString);
   return isNaN(date.getTime()) ? null : date;
+}
+
+// Helper: Calculate feed status metrics
+function calculateFeedMetrics(feedStatus: Record<string | number, FeedStatus>) {
+  const okCount = Object.values(feedStatus).filter(s => s === 'ok').length;
+  const totalCount = LIVE_FEEDS.length;
+
+  return {
+    okCount,
+    totalCount,
+    allHealthy: okCount === totalCount,
+    someHealthy: okCount > 0,
+  };
+}
+
+// Helper: Get status colors based on feed health
+function getStatusColors(metrics: ReturnType<typeof calculateFeedMetrics>) {
+  if (metrics.allHealthy) {
+    return {
+      bg: 'rgb(20 83 11 / 0.2)',
+      border: 'rgb(34 197 94 / 0.3)',
+      text: '#22c55e',
+      indicator: 'rgb(34 197 94)',
+    };
+  } else if (metrics.someHealthy) {
+    return {
+      bg: 'rgb(120 53 15 / 0.2)',
+      border: 'rgb(217 119 6 / 0.3)',
+      text: '#d97706',
+      indicator: 'rgb(217 119 6)',
+    };
+  } else {
+    return {
+      bg: 'rgb(127 29 29 / 0.2)',
+      border: 'rgb(239 68 68 / 0.3)',
+      text: '#ef4444',
+      indicator: 'rgb(239 68 68)',
+    };
+  }
+}
+
+// Component: Error alert for feed failures
+function FeedErrorAlert({ errorMessages }: { errorMessages: Record<string | number, string> }) {
+  if (Object.keys(errorMessages).length === 0) return null;
+
+  return (
+    <div className="bg-red-900/20 border-b border-red-800/50 p-4 text-sm">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+        <div>
+          <p className="text-red-300 font-semibold mb-2">Feed Errors:</p>
+          <ul className="text-red-200 space-y-1 text-xs">
+            {Object.entries(errorMessages).map(([feedId, error]) => {
+              const feed = LIVE_FEEDS.find(f => f.id === feedId);
+              return (
+                <li key={feedId}>
+                  <span className="text-red-300">{feed?.name}:</span> {error}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function IntelligenceDashboard() {
@@ -402,44 +469,26 @@ export default function IntelligenceDashboard() {
                {isRefreshing ? 'SYNCING...' : 'REFRESH INTEL'}
              </button>
 
-             <div className="flex items-center gap-2 px-3 py-1.5 rounded text-xs border"
-               style={{
-                 backgroundColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
-                   ? 'rgb(20 83 11 / 0.2)'
-                   : Object.values(feedStatus).filter(s => s === 'ok').length > 0
-                   ? 'rgb(120 53 15 / 0.2)'
-                   : 'rgb(127 29 29 / 0.2)',
-                 borderColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
-                   ? 'rgb(34 197 94 / 0.3)'
-                   : Object.values(feedStatus).filter(s => s === 'ok').length > 0
-                   ? 'rgb(217 119 6 / 0.3)'
-                   : 'rgb(239 68 68 / 0.3)',
-                 color: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
-                   ? '#22c55e'
-                   : Object.values(feedStatus).filter(s => s === 'ok').length > 0
-                   ? '#d97706'
-                   : '#ef4444'
-               }}>
-               <span className="relative flex h-2 w-2">
-                  <span className={`${isRefreshing ? 'animate-spin' : 'animate-pulse'} absolute inline-flex h-full w-full rounded-full opacity-75`}
-                    style={{
-                      backgroundColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
-                        ? 'rgb(34 197 94)'
-                        : Object.values(feedStatus).filter(s => s === 'ok').length > 0
-                        ? 'rgb(217 119 6)'
-                        : 'rgb(239 68 68)'
-                    }}></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2"
-                    style={{
-                      backgroundColor: Object.values(feedStatus).filter(s => s === 'ok').length === LIVE_FEEDS.length
-                        ? 'rgb(34 197 94)'
-                        : Object.values(feedStatus).filter(s => s === 'ok').length > 0
-                        ? 'rgb(217 119 6)'
-                        : 'rgb(239 68 68)'
-                    }}></span>
-                </span>
-                FEEDS: {Object.values(feedStatus).filter(s => s === 'ok').length}/{LIVE_FEEDS.length}
-             </div>
+             {(() => {
+               const metrics = calculateFeedMetrics(feedStatus);
+               const colors = getStatusColors(metrics);
+               return (
+                 <div className="flex items-center gap-2 px-3 py-1.5 rounded text-xs border"
+                   style={{
+                     backgroundColor: colors.bg,
+                     borderColor: colors.border,
+                     color: colors.text
+                   }}>
+                   <span className="relative flex h-2 w-2">
+                     <span className={`${isRefreshing ? 'animate-spin' : 'animate-pulse'} absolute inline-flex h-full w-full rounded-full opacity-75`}
+                       style={{ backgroundColor: colors.indicator }}></span>
+                     <span className="relative inline-flex rounded-full h-2 w-2"
+                       style={{ backgroundColor: colors.indicator }}></span>
+                   </span>
+                   FEEDS: {metrics.okCount}/{metrics.totalCount}
+                 </div>
+               );
+             })()}
           </div>
         </div>
       </header>
@@ -520,26 +569,7 @@ export default function IntelligenceDashboard() {
               </div>
 
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
-                {Object.keys(errorMessages).length > 0 && (
-                  <div className="bg-red-900/20 border-b border-red-800/50 p-4 text-sm">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-red-300 font-semibold mb-2">Feed Errors:</p>
-                        <ul className="text-red-200 space-y-1 text-xs">
-                          {Object.entries(errorMessages).map(([feedId, error]) => {
-                            const feed = LIVE_FEEDS.find(f => f.id === feedId);
-                            return (
-                              <li key={feedId}>
-                                <span className="text-red-300">{feed?.name}:</span> {error}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <FeedErrorAlert errorMessages={errorMessages} />
                 {feed.length === 0 && !isRefreshing && (
                    <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                      <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
