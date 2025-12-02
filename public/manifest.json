@@ -1,0 +1,37 @@
+{
+  "name": "Intelligence Dashboard - Multi-Perspective News",
+  "short_name": "Intel Dashboard",
+  "description": "Multi-perspective news aggregator with transparent sourcing",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["news", "education"],
+  "shortcuts": [
+    {
+      "name": "Right-Wing Perspective",
+      "url": "/?view=right",
+      "description": "View conservative news sources"
+    },
+    {
+      "name": "Left-Wing Perspective",
+      "url": "/?view=left",
+      "description": "View progressive news sources"
+    }
+  ]
+}

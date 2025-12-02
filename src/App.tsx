@@ -1,10 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/LandingPage';
-import RightWingDashboard from './components/RightWingDashboard';
-import LeftWingDashboard from './components/LeftWingDashboard';
+
+// Lazy load dashboard components for code splitting
+const RightWingDashboard = lazy(() => import('./components/RightWingDashboard'));
+const LeftWingDashboard = lazy(() => import('./components/LeftWingDashboard'));
 
 type Perspective = 'landing' | 'right' | 'left';
+
+// Loading component for suspense fallback
+function DashboardLoader() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-slate-400 text-sm">Loading dashboard...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [currentView, setCurrentView] = useState<Perspective>('landing');
@@ -34,10 +48,14 @@ export default function App() {
         <LandingPage onSelectPerspective={handleSelectPerspective} />
       )}
       {currentView === 'right' && (
-        <RightWingDashboard onSwitchPerspective={handleSwitchPerspective} />
+        <Suspense fallback={<DashboardLoader />}>
+          <RightWingDashboard onSwitchPerspective={handleSwitchPerspective} />
+        </Suspense>
       )}
       {currentView === 'left' && (
-        <LeftWingDashboard onSwitchPerspective={handleSwitchPerspective} />
+        <Suspense fallback={<DashboardLoader />}>
+          <LeftWingDashboard onSwitchPerspective={handleSwitchPerspective} />
+        </Suspense>
       )}
     </AuthProvider>
   );
