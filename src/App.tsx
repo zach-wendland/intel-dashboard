@@ -2,11 +2,10 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/LandingPage';
 
-// Lazy load dashboard components for code splitting
-const RightWingDashboard = lazy(() => import('./components/RightWingDashboard'));
-const LeftWingDashboard = lazy(() => import('./components/LeftWingDashboard'));
+// Lazy load the unified dashboard component for code splitting
+const Dashboard = lazy(() => import('./components/Dashboard'));
 
-type Perspective = 'landing' | 'right' | 'left';
+type View = 'landing' | 'right' | 'left';
 
 // Loading component for suspense fallback
 function DashboardLoader() {
@@ -21,11 +20,11 @@ function DashboardLoader() {
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<Perspective>('landing');
+  const [currentView, setCurrentView] = useState<View>('landing');
 
   // Load saved perspective from localStorage
   useEffect(() => {
-    const savedPerspective = localStorage.getItem('selected_perspective') as Perspective | null;
+    const savedPerspective = localStorage.getItem('selected_perspective') as View | null;
     if (savedPerspective && (savedPerspective === 'right' || savedPerspective === 'left')) {
       setCurrentView(savedPerspective);
     }
@@ -47,14 +46,12 @@ export default function App() {
       {currentView === 'landing' && (
         <LandingPage onSelectPerspective={handleSelectPerspective} />
       )}
-      {currentView === 'right' && (
+      {(currentView === 'right' || currentView === 'left') && (
         <Suspense fallback={<DashboardLoader />}>
-          <RightWingDashboard onSwitchPerspective={handleSwitchPerspective} />
-        </Suspense>
-      )}
-      {currentView === 'left' && (
-        <Suspense fallback={<DashboardLoader />}>
-          <LeftWingDashboard onSwitchPerspective={handleSwitchPerspective} />
+          <Dashboard
+            perspective={currentView}
+            onSwitchPerspective={handleSwitchPerspective}
+          />
         </Suspense>
       )}
     </AuthProvider>
