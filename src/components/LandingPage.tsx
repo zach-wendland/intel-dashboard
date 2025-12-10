@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Activity, ArrowRight, Shield, Users, TrendingUp, BookOpen } from 'lucide-react';
+import { Activity, ArrowRight, Shield, Users, TrendingUp, BookOpen, DollarSign, Database, UserCheck } from 'lucide-react';
 
 interface LandingPageProps {
   onSelectPerspective: (perspective: 'right' | 'left') => void;
+  onOpenPoliticalTracker?: () => void;
 }
 
-export default function LandingPage({ onSelectPerspective }: LandingPageProps) {
-  const [hoveredCard, setHoveredCard] = useState<'right' | 'left' | null>(null);
+export default function LandingPage({ onSelectPerspective, onOpenPoliticalTracker }: LandingPageProps) {
+  const [hoveredCard, setHoveredCard] = useState<'right' | 'left' | 'political' | null>(null);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans">
@@ -131,6 +132,68 @@ export default function LandingPage({ onSelectPerspective }: LandingPageProps) {
             </button>
           </div>
         </div>
+
+        {/* Political Donor Tracker Card */}
+        {onOpenPoliticalTracker && (
+          <div className="max-w-5xl mx-auto mb-12">
+            <div
+              onMouseEnter={() => setHoveredCard('political')}
+              onMouseLeave={() => setHoveredCard(null)}
+              className={`relative bg-gradient-to-br from-emerald-900/20 to-slate-900 border-2 rounded-2xl p-8 transition-all duration-300 cursor-pointer ${
+                hoveredCard === 'political'
+                  ? 'border-emerald-500 shadow-2xl shadow-emerald-500/20 scale-[1.02]'
+                  : 'border-emerald-800/50 hover:border-emerald-700'
+              }`}
+              onClick={onOpenPoliticalTracker}
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div className="flex-1">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="bg-emerald-600/20 p-3 rounded-xl border border-emerald-500/30">
+                      <DollarSign className="h-8 w-8 text-emerald-500" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-2xl font-bold text-white">Political Donor Tracker</h3>
+                        <span className="text-xs font-mono px-3 py-1 bg-emerald-900/30 text-emerald-400 border border-emerald-800/50 rounded-full">
+                          NEW
+                        </span>
+                      </div>
+                      <p className="text-slate-400 leading-relaxed">
+                        Track campaign contributions, PAC expenditures, and lobbyist disclosures.
+                        Comprehensive data from FEC, OpenSecrets, and state-level portals.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                      <Database className="h-4 w-4 text-emerald-400" />
+                      <span>55+ Data Sources</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                      <DollarSign className="h-4 w-4 text-emerald-400" />
+                      <span>Donor Profiles</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                      <UserCheck className="h-4 w-4 text-emerald-400" />
+                      <span>Lobbyist Disclosures</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                      <TrendingUp className="h-4 w-4 text-emerald-400" />
+                      <span>Live RSS Feeds</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-lg transition-all whitespace-nowrap">
+                  Open Tracker
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Features Section */}
         <div className="max-w-4xl mx-auto">
