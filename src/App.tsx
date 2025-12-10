@@ -4,8 +4,9 @@ import LandingPage from './components/LandingPage';
 
 // Lazy load the unified dashboard component for code splitting
 const Dashboard = lazy(() => import('./components/Dashboard'));
+const PoliticalDonorTracker = lazy(() => import('./components/PoliticalDonorTracker'));
 
-type View = 'landing' | 'right' | 'left';
+type View = 'landing' | 'right' | 'left' | 'political-tracker';
 
 // Loading component for suspense fallback
 function DashboardLoader() {
@@ -41,10 +42,21 @@ export default function App() {
     localStorage.setItem('selected_perspective', newPerspective);
   };
 
+  const handleOpenPoliticalTracker = () => {
+    setCurrentView('political-tracker');
+  };
+
+  const handleBackFromTracker = () => {
+    setCurrentView('landing');
+  };
+
   return (
     <AuthProvider>
       {currentView === 'landing' && (
-        <LandingPage onSelectPerspective={handleSelectPerspective} />
+        <LandingPage
+          onSelectPerspective={handleSelectPerspective}
+          onOpenPoliticalTracker={handleOpenPoliticalTracker}
+        />
       )}
       {(currentView === 'right' || currentView === 'left') && (
         <Suspense fallback={<DashboardLoader />}>
@@ -52,6 +64,11 @@ export default function App() {
             perspective={currentView}
             onSwitchPerspective={handleSwitchPerspective}
           />
+        </Suspense>
+      )}
+      {currentView === 'political-tracker' && (
+        <Suspense fallback={<DashboardLoader />}>
+          <PoliticalDonorTracker onBack={handleBackFromTracker} />
         </Suspense>
       )}
     </AuthProvider>
