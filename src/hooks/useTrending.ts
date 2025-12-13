@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { FeedItem, TrendingTopic, HourlyAggregate, SourceTopicMatrix } from '../types';
 import {
   computeTrendingTopics,
@@ -19,32 +19,26 @@ interface UseTrendingReturn {
 
 /**
  * Hook for computing trending analytics from feed data
+ * Uses memoization instead of effects to avoid cascading renders
  */
 export function useTrending(feed: FeedItem[]): UseTrendingReturn {
-  const [trending, setTrending] = useState<TrendingTopic[]>([]);
-  const [hourlyData, setHourlyData] = useState<HourlyAggregate[]>([]);
-  const [sourceMatrix, setSourceMatrix] = useState<SourceTopicMatrix>({});
-
-  // Recompute analytics when feed changes
-  useEffect(() => {
-    if (feed.length === 0) {
-      setTrending([]);
-      setHourlyData([]);
-      setSourceMatrix({});
-      return;
-    }
-
-    // Compute all analytics
-    const newTrending = computeTrendingTopics(feed);
-    const newHourlyData = computeHourlyAggregates(feed);
-    const newSourceMatrix = computeSourceTopicMatrix(feed);
-
-    setTrending(newTrending);
-    setHourlyData(newHourlyData);
-    setSourceMatrix(newSourceMatrix);
+  // Compute all analytics using useMemo - no effects needed
+  const trending = useMemo(() => {
+    if (feed.length === 0) return [];
+    return computeTrendingTopics(feed);
   }, [feed]);
 
-  // Memoized chart data
+  const hourlyData = useMemo(() => {
+    if (feed.length === 0) return [];
+    return computeHourlyAggregates(feed);
+  }, [feed]);
+
+  const sourceMatrix = useMemo(() => {
+    if (feed.length === 0) return {};
+    return computeSourceTopicMatrix(feed);
+  }, [feed]);
+
+  // Derived data
   const chartData = useMemo(() => getChartData(hourlyData), [hourlyData]);
   const narrativeData = useMemo(() => getNarrativeData(trending, 5), [trending]);
   const topTopics = useMemo(() => trending.slice(0, 10).map(t => t.topic), [trending]);

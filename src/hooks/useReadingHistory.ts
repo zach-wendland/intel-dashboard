@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export interface ReadingHistoryItem {
@@ -12,24 +12,47 @@ export interface ReadingHistoryItem {
 
 const MAX_HISTORY_ITEMS = 100;
 
+function loadHistoryFromStorage(userId: string): ReadingHistoryItem[] {
+  const stored = localStorage.getItem(`reading_history_${userId}`);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return parsed.map((item: ReadingHistoryItem) => ({
+        ...item,
+        readAt: new Date(item.readAt)
+      }));
+    } catch (e) {
+      console.error('Failed to parse reading history', e);
+    }
+  }
+  return [];
+}
+
 export function useReadingHistory() {
   const { user } = useAuth();
-  const [history, setHistory] = useState<ReadingHistoryItem[]>([]);
+  const prevUserIdRef = useRef<string | null>(null);
 
-  // Load history from localStorage on mount
-  useEffect(() => {
+  // Initialize history with lazy loading
+  const [history, setHistory] = useState<ReadingHistoryItem[]>(() => {
     if (user) {
-      const stored = localStorage.getItem(`reading_history_${user.id}`);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setHistory(parsed.map((item: ReadingHistoryItem) => ({
-            ...item,
-            readAt: new Date(item.readAt)
-          })));
-        } catch (e) {
-          console.error('Failed to parse reading history', e);
-        }
+      return loadHistoryFromStorage(user.id);
+    }
+    return [];
+  });
+
+  // Sync history when user changes (login/logout)
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+
+    // Only update if user actually changed
+    if (prevUserIdRef.current !== currentUserId) {
+      prevUserIdRef.current = currentUserId;
+
+      if (currentUserId) {
+        const loaded = loadHistoryFromStorage(currentUserId);
+        setHistory(loaded);
+      } else {
+        setHistory([]);
       }
     }
   }, [user]);
@@ -41,7 +64,7 @@ export function useReadingHistory() {
     }
   }, [history, user]);
 
-  const addToHistory = (
+  const addToHistory = useCallback((
     articleId: string,
     articleTitle: string,
     articleUrl: string,
@@ -68,22 +91,22 @@ export function useReadingHistory() {
       const updated = [newItem, ...filtered].slice(0, MAX_HISTORY_ITEMS);
       return updated;
     });
-  };
+  }, [user]);
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     if (user) {
       localStorage.removeItem(`reading_history_${user.id}`);
       setHistory([]);
     }
-  };
+  }, [user]);
 
-  const hasRead = (articleId: string): boolean => {
+  const hasRead = useCallback((articleId: string): boolean => {
     return history.some(item => item.articleId === articleId);
-  };
+  }, [history]);
 
-  const getHistoryByPerspective = (perspective: 'right' | 'left') => {
+  const getHistoryByPerspective = useCallback((perspective: 'right' | 'left') => {
     return history.filter(item => item.perspective === perspective);
-  };
+  }, [history]);
 
   return {
     history,

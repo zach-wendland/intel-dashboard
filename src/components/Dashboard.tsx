@@ -9,7 +9,6 @@ import {
   ShieldAlert,
   Server,
   Database,
-  TrendingUp,
   AlertTriangle,
   Cpu,
   Users,
@@ -17,7 +16,10 @@ import {
   ExternalLink,
   RefreshCw,
   Wifi,
-  LogOut
+  LogOut,
+  Bookmark,
+  BookmarkCheck,
+  Play
 } from 'lucide-react';
 import {
   LineChart,
@@ -32,6 +34,17 @@ import {
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { feedService, type FeedItem, type FeedStatus, type SourceItem } from '../services/feedService';
+
+// Import modular components
+import { FeedGridSkeleton } from './LoadingState';
+import { SearchBar } from './ui/SearchBar';
+import { TrendingWidget } from './ui/TrendingWidget';
+import { useSearch } from '../hooks/useSearch';
+import { useTrending } from '../hooks/useTrending';
+import { useBookmarks } from '../hooks/useBookmarks';
+import { useReadingHistory } from '../hooks/useReadingHistory';
+import type { MediaSettings } from '../types';
+import { MediaView } from './views/MediaView';
 
 // Import configurations from both perspectives
 import {
@@ -148,60 +161,6 @@ function getStatusColors(metrics: ReturnType<typeof calculateFeedMetrics>) {
   }
 }
 
-// Compute real metrics from feed data
-function computeRealMetrics(feedItems: FeedItem[]) {
-  // Topic frequency analysis
-  const topicCounts: Record<string, number> = {};
-  feedItems.forEach(item => {
-    const topic = item.topic || 'General';
-    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
-  });
-
-  // Convert to chart data format, sorted by count
-  const narrativeData = Object.entries(topicCounts)
-    .map(([topic, count]) => ({
-      topic,
-      value: Math.min(100, Math.round((count / feedItems.length) * 100 * 3)) // Scale for visibility
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
-
-  // Time-based volume analysis (group by hour)
-  const hourlyVolume: Record<string, { count: number; dates: Date[] }> = {};
-  feedItems.forEach(item => {
-    const hour = item.rawDate.getHours();
-    const hourKey = `${hour.toString().padStart(2, '0')}:00`;
-    if (!hourlyVolume[hourKey]) {
-      hourlyVolume[hourKey] = { count: 0, dates: [] };
-    }
-    hourlyVolume[hourKey].count++;
-    hourlyVolume[hourKey].dates.push(item.rawDate);
-  });
-
-  // Generate chart data for last 6 time slots
-  const chartData = Object.entries(hourlyVolume)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([name, data]) => ({
-      name,
-      volume: data.count * 20, // Scale for visibility
-      sentiment: 50 + Math.floor(Math.random() * 30) // Placeholder until we add sentiment analysis
-    }));
-
-  // Fill in missing hours if needed
-  if (chartData.length < 6) {
-    const defaultHours = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
-    defaultHours.forEach(hour => {
-      if (!chartData.find(d => d.name === hour)) {
-        chartData.push({ name: hour, volume: 0, sentiment: 50 });
-      }
-    });
-    chartData.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  return { chartData: chartData.slice(0, 6), narrativeData };
-}
-
 // Error Alert Component
 function FeedErrorAlert({
   errorMessages,
@@ -240,6 +199,16 @@ interface DashboardProps {
   onSwitchPerspective: () => void;
 }
 
+// Default media settings
+const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
+  rumbleChannels: [
+    { id: '1', name: 'Rumble Trending', embedId: 'c/Trending' },
+  ],
+  twitterAccounts: [
+    { handle: 'elonmusk', name: 'Elon Musk' },
+  ],
+};
+
 export default function Dashboard({ perspective, onSwitchPerspective }: DashboardProps) {
   const config = PERSPECTIVE_CONFIG[perspective];
   const { user, logout } = useAuth();
@@ -251,10 +220,17 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [feedStatus, setFeedStatus] = useState<Record<string | number, FeedStatus>>({});
   const [errorMessages, setErrorMessages] = useState<Record<string | number, string>>({});
+  const [mediaSettings, setMediaSettings] = useState<MediaSettings>(DEFAULT_MEDIA_SETTINGS);
 
-  // Computed metrics from real data
-  const [chartData, setChartData] = useState<{ name: string; volume: number; sentiment: number }[]>([]);
-  const [narrativeData, setNarrativeData] = useState<{ topic: string; value: number }[]>([]);
+  // Use modular hooks for search, trending, bookmarks, and history
+  const { filters, updateFilter, filteredFeed, resultCount } = useSearch(feed);
+  const { trending, chartData: trendingChartData, narrativeData: trendingNarrativeData } = useTrending(feed);
+  const { isBookmarked, addBookmark, removeBookmark } = useBookmarks();
+  const { hasRead, addToHistory } = useReadingHistory();
+
+  // Use trending data for charts (replaces inline computation)
+  const chartData = trendingChartData;
+  const narrativeData = trendingNarrativeData;
 
   const fetchLiveFeed = async () => {
     setIsRefreshing(true);
@@ -270,13 +246,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
       setFeedStatus(result.status);
       setErrorMessages(result.errors);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
-
-      // Compute real metrics from feed data
-      if (result.items.length > 0) {
-        const metrics = computeRealMetrics(result.items);
-        setChartData(metrics.chartData);
-        setNarrativeData(metrics.narrativeData);
-      }
+      // Note: chartData and narrativeData are now computed by useTrending hook
     } catch (e) {
       console.error("Global fetch error", e);
     } finally {
@@ -323,6 +293,9 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
             </button>
             <button onClick={() => setActiveTab('synthesis')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'synthesis' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <Cpu className="h-4 w-4 inline mr-2" />Synthesis
+            </button>
+            <button onClick={() => setActiveTab('media')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'media' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+              <Play className="h-4 w-4 inline mr-2" />Media
             </button>
           </nav>
 
@@ -404,16 +377,33 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
         {activeTab === 'feed' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Wifi className={`h-5 w-5 ${config.accentColor} animate-pulse`} />
                   Live Wire Intercepts
                   {lastUpdated && <span className="text-xs font-mono font-normal text-slate-500 ml-2">(UPDATED: {lastUpdated})</span>}
                 </h2>
+                <span className="text-xs text-slate-500 font-mono">
+                  {resultCount} / {feed.length} articles
+                </span>
               </div>
+
+              {/* Search bar for filtering articles */}
+              <SearchBar
+                value={filters.query}
+                onChange={(value) => updateFilter('query', value)}
+                placeholder="Search articles..."
+              />
 
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
                 <FeedErrorAlert errorMessages={errorMessages} liveFeeds={config.liveFeeds} />
+
+                {/* Loading skeleton */}
+                {isRefreshing && feed.length === 0 && (
+                  <FeedGridSkeleton count={6} />
+                )}
+
+                {/* Empty state */}
                 {feed.length === 0 && !isRefreshing && (
                   <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                     <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
@@ -421,35 +411,78 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                   </div>
                 )}
 
-                {feed.map((item) => (
-                  <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-4 border-b border-slate-800 hover:bg-slate-800/80 transition-all group cursor-pointer relative">
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ExternalLink className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-xs font-mono text-blue-400 bg-blue-900/10 px-1.5 py-0.5 rounded">{item.topic.toUpperCase()}</span>
-                      <span className="text-xs font-mono text-slate-500">{item.time}</span>
-                    </div>
-                    <h3 className="text-sm font-medium text-slate-200 group-hover:text-blue-400 transition-colors mb-2 pr-6 line-clamp-2">{item.title}</h3>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 flex items-center gap-1 group-hover:text-slate-300">
-                          <Globe className="h-3 w-3" />
-                          {item.source}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-slate-600">VIRALITY:</span>
-                        <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${perspective === 'right' ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}
-                            style={{ width: `${item.velocity}%` }}
-                          ></div>
+                {/* No results from search */}
+                {feed.length > 0 && filteredFeed.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                    <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
+                    <p>No articles match your search.</p>
+                  </div>
+                )}
+
+                {/* Feed items with bookmark buttons */}
+                {filteredFeed.map((item) => {
+                  const bookmarked = isBookmarked(item.id);
+                  const read = hasRead(item.id);
+
+                  return (
+                    <div key={item.id} className={`relative border-b border-slate-800 ${read ? 'opacity-70' : ''}`}>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => addToHistory(item.id, item.title, item.url, item.source, perspective)}
+                        className="block p-4 hover:bg-slate-800/80 transition-all group cursor-pointer pr-16"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-xs font-mono text-blue-400 bg-blue-900/10 px-1.5 py-0.5 rounded">{item.topic.toUpperCase()}</span>
+                          <span className="text-xs font-mono text-slate-500">{item.time}</span>
                         </div>
-                      </div>
+                        <h3 className={`text-sm font-medium ${read ? 'text-slate-400' : 'text-slate-200'} group-hover:text-blue-400 transition-colors mb-2 pr-6 line-clamp-2`}>
+                          {item.title}
+                        </h3>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 flex items-center gap-1 group-hover:text-slate-300">
+                              <Globe className="h-3 w-3" />
+                              {item.source}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-slate-600">VIRALITY:</span>
+                            <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${perspective === 'right' ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}
+                                style={{ width: `${item.velocity}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </a>
+
+                      {/* Bookmark button */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (bookmarked) {
+                            // Find the bookmark to remove
+                            removeBookmark(item.id);
+                          } else {
+                            addBookmark(item.id, item.title, item.url, item.source);
+                          }
+                        }}
+                        className={`absolute top-4 right-4 p-2 rounded-lg transition-all ${
+                          bookmarked
+                            ? 'text-yellow-400 bg-yellow-900/20'
+                            : 'text-slate-500 hover:text-yellow-400 hover:bg-yellow-900/10'
+                        }`}
+                        title={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
+                      >
+                        {bookmarked ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                      </button>
                     </div>
-                  </a>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -471,21 +504,12 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-blue-500" />
-                  {perspective === 'right' ? 'Top Entities Tracked' : 'Trending Topics'}
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {config.trendingTags.map((tag) => (
-                      <span key={tag} className="text-xs px-2 py-1 bg-slate-800 text-slate-300 rounded border border-slate-700 hover:border-slate-500 cursor-pointer hover:bg-slate-700 transition-colors">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              {/* Use TrendingWidget with real trending data */}
+              <TrendingWidget
+                trending={trending}
+                onTopicClick={(topic) => updateFilter('query', topic)}
+                maxItems={8}
+              />
             </div>
           </div>
         )}
@@ -529,6 +553,13 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'media' && (
+          <MediaView
+            settings={mediaSettings}
+            onSettingsChange={setMediaSettings}
+          />
         )}
       </main>
     </div>

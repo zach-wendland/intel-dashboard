@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export interface Bookmark {
@@ -11,24 +11,49 @@ export interface Bookmark {
   notes?: string;
 }
 
+function loadBookmarksFromStorage(userId: string): Bookmark[] {
+  const stored = localStorage.getItem(`bookmarks_${userId}`);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return parsed.map((b: Bookmark) => ({
+        ...b,
+        savedAt: new Date(b.savedAt)
+      }));
+    } catch (e) {
+      console.error('Failed to parse bookmarks', e);
+    }
+  }
+  return [];
+}
+
 export function useBookmarks() {
   const { user } = useAuth();
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const prevUserIdRef = useRef<string | null>(null);
 
-  // Load bookmarks from localStorage on mount
-  useEffect(() => {
+  // Initialize bookmarks - lazy init for first render
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
     if (user) {
-      const stored = localStorage.getItem(`bookmarks_${user.id}`);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setBookmarks(parsed.map((b: Bookmark) => ({
-            ...b,
-            savedAt: new Date(b.savedAt)
-          })));
-        } catch (e) {
-          console.error('Failed to parse bookmarks', e);
-        }
+      return loadBookmarksFromStorage(user.id);
+    }
+    return [];
+  });
+
+  // Sync bookmarks when user changes (login/logout)
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+
+    // Only update if user actually changed
+    if (prevUserIdRef.current !== currentUserId) {
+      prevUserIdRef.current = currentUserId;
+
+      if (currentUserId) {
+        // User logged in - load their bookmarks
+        const loaded = loadBookmarksFromStorage(currentUserId);
+        setBookmarks(loaded);
+      } else {
+        // User logged out - clear bookmarks
+        setBookmarks([]);
       }
     }
   }, [user]);
@@ -40,7 +65,7 @@ export function useBookmarks() {
     }
   }, [bookmarks, user]);
 
-  const addBookmark = (
+  const addBookmark = useCallback((
     articleId: string,
     articleTitle: string,
     articleUrl: string,
@@ -62,30 +87,30 @@ export function useBookmarks() {
     };
 
     setBookmarks(prev => [newBookmark, ...prev]);
-  };
+  }, [user]);
 
-  const removeBookmark = (bookmarkId: string) => {
+  const removeBookmark = useCallback((bookmarkId: string) => {
     setBookmarks(prev => prev.filter(b => b.id !== bookmarkId));
-  };
+  }, []);
 
-  const isBookmarked = (articleId: string): boolean => {
+  const isBookmarked = useCallback((articleId: string): boolean => {
     return bookmarks.some(b => b.articleId === articleId);
-  };
+  }, [bookmarks]);
 
-  const updateNotes = (bookmarkId: string, notes: string) => {
+  const updateNotes = useCallback((bookmarkId: string, notes: string) => {
     setBookmarks(prev =>
       prev.map(b =>
         b.id === bookmarkId ? { ...b, notes } : b
       )
     );
-  };
+  }, []);
 
-  const clearAllBookmarks = () => {
+  const clearAllBookmarks = useCallback(() => {
     if (user) {
       localStorage.removeItem(`bookmarks_${user.id}`);
       setBookmarks([]);
     }
-  };
+  }, [user]);
 
   return {
     bookmarks,
