@@ -16,8 +16,7 @@ import {
   Zap,
   ExternalLink,
   RefreshCw,
-  Wifi,
-  LogOut
+  Wifi
 } from 'lucide-react';
 import {
   LineChart,
@@ -30,8 +29,8 @@ import {
   BarChart,
   Bar
 } from 'recharts';
-import { useAuth } from '../contexts/AuthContext';
 import { feedService, type FeedItem, type FeedStatus, type SourceItem } from '../services/feedService';
+import { extractTopics, calculateSentimentScore } from '../utils/analytics';
 
 // Import configurations from both perspectives
 import {
@@ -166,26 +165,31 @@ function computeRealMetrics(feedItems: FeedItem[]) {
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
-  // Time-based volume analysis (group by hour)
-  const hourlyVolume: Record<string, { count: number; dates: Date[] }> = {};
+  // Time-based volume analysis (group by hour) with topic tracking for sentiment
+  const hourlyVolume: Record<string, { count: number; topics: Record<string, number> }> = {};
   feedItems.forEach(item => {
     const hour = item.rawDate.getHours();
     const hourKey = `${hour.toString().padStart(2, '0')}:00`;
     if (!hourlyVolume[hourKey]) {
-      hourlyVolume[hourKey] = { count: 0, dates: [] };
+      hourlyVolume[hourKey] = { count: 0, topics: {} };
     }
     hourlyVolume[hourKey].count++;
-    hourlyVolume[hourKey].dates.push(item.rawDate);
+
+    // Track topics for this hour to compute real sentiment
+    const topics = extractTopics(item.title);
+    topics.forEach(topic => {
+      hourlyVolume[hourKey].topics[topic] = (hourlyVolume[hourKey].topics[topic] || 0) + 1;
+    });
   });
 
-  // Generate chart data for last 6 time slots
+  // Generate chart data for last 6 time slots with real sentiment scores
   const chartData = Object.entries(hourlyVolume)
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-6)
     .map(([name, data]) => ({
       name,
       volume: data.count * 20, // Scale for visibility
-      sentiment: 50 + Math.floor(Math.random() * 30) // Placeholder until we add sentiment analysis
+      sentiment: calculateSentimentScore(data.topics) // Real sentiment based on topic distribution
     }));
 
   // Fill in missing hours if needed
@@ -242,7 +246,6 @@ interface DashboardProps {
 
 export default function Dashboard({ perspective, onSwitchPerspective }: DashboardProps) {
   const config = PERSPECTIVE_CONFIG[perspective];
-  const { user, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<string>('feed');
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -344,12 +347,6 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               </span>
               FEEDS: {metrics.okCount}/{metrics.totalCount}
             </div>
-            {user && (
-              <button onClick={logout} className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs text-slate-300 transition-all">
-                <LogOut className="h-3.5 w-3.5" />
-                Logout
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -439,7 +436,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-slate-600">VIRALITY:</span>
+                        <span className="text-xs font-mono text-slate-600">FRESHNESS:</span>
                         <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                           <div
                             className={`h-full ${perspective === 'right' ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}

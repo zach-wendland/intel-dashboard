@@ -3,6 +3,7 @@ import type { FeedItem, FeedStatus, RSSResponse, RSSItem } from '../types';
 import { LIVE_FEEDS, RSS_API_BASE, FEED_CONFIG } from '../config/feeds';
 import { isValidUrl, parseDate, formatTime } from '../utils/validators';
 import { getCachedFeed, setCachedFeed } from '../utils/cache';
+import { calculateFreshnessScore } from '../utils/analytics';
 
 interface UseFeedReturn {
   feed: FeedItem[];
@@ -91,7 +92,7 @@ export function useFeed(): UseFeedReturn {
                 time: formatTime(pubDate),
                 rawDate: pubDate,
                 url: item.link!,
-                velocity: Math.floor(Math.random() * (100 - 40) + 40), // Will be replaced with real analytics
+                velocity: calculateFreshnessScore(pubDate),
                 category: source.category
               };
             })

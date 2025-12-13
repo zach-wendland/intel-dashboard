@@ -1,5 +1,4 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/LandingPage';
 
 // Lazy load the unified dashboard component for code splitting
@@ -51,7 +50,7 @@ export default function App() {
   };
 
   return (
-    <AuthProvider>
+    <>
       {currentView === 'landing' && (
         <LandingPage
           onSelectPerspective={handleSelectPerspective}
@@ -71,6 +70,6 @@ export default function App() {
           <PoliticalDonorTracker onBack={handleBackFromTracker} />
         </Suspense>
       )}
-    </AuthProvider>
+    </>
   );
 }

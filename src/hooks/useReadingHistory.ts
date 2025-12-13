@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 
 export interface ReadingHistoryItem {
   articleId: string;
@@ -11,35 +10,33 @@ export interface ReadingHistoryItem {
 }
 
 const MAX_HISTORY_ITEMS = 100;
+const STORAGE_KEY = 'reading_history';
 
 export function useReadingHistory() {
-  const { user } = useAuth();
   const [history, setHistory] = useState<ReadingHistoryItem[]>([]);
 
   // Load history from localStorage on mount
   useEffect(() => {
-    if (user) {
-      const stored = localStorage.getItem(`reading_history_${user.id}`);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setHistory(parsed.map((item: ReadingHistoryItem) => ({
-            ...item,
-            readAt: new Date(item.readAt)
-          })));
-        } catch (e) {
-          console.error('Failed to parse reading history', e);
-        }
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setHistory(parsed.map((item: ReadingHistoryItem) => ({
+          ...item,
+          readAt: new Date(item.readAt)
+        })));
+      } catch (e) {
+        console.error('Failed to parse reading history', e);
       }
     }
-  }, [user]);
+  }, []);
 
   // Save history to localStorage whenever it changes
   useEffect(() => {
-    if (user && history.length >= 0) {
-      localStorage.setItem(`reading_history_${user.id}`, JSON.stringify(history));
+    if (history.length >= 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
     }
-  }, [history, user]);
+  }, [history]);
 
   const addToHistory = (
     articleId: string,
@@ -48,8 +45,6 @@ export function useReadingHistory() {
     source: string,
     perspective: 'right' | 'left'
   ) => {
-    if (!user) return;
-
     setHistory(prev => {
       // Remove existing entry for same article
       const filtered = prev.filter(item => item.articleId !== articleId);
@@ -71,10 +66,8 @@ export function useReadingHistory() {
   };
 
   const clearHistory = () => {
-    if (user) {
-      localStorage.removeItem(`reading_history_${user.id}`);
-      setHistory([]);
-    }
+    localStorage.removeItem(STORAGE_KEY);
+    setHistory([]);
   };
 
   const hasRead = (articleId: string): boolean => {

@@ -32,6 +32,23 @@ export function extractTopics(title: string): string[] {
 }
 
 /**
+ * Calculate freshness score (0-100) based on article age
+ * Newer articles score higher - this is a real metric, not random
+ */
+export function calculateFreshnessScore(publishDate: Date): number {
+  const now = Date.now();
+  const ageMs = now - publishDate.getTime();
+  const ageHours = ageMs / (1000 * 60 * 60);
+
+  if (ageHours < 1) return Math.round(90 + (1 - ageHours) * 10);
+  if (ageHours < 3) return Math.round(89 - ((ageHours - 1) / 2) * 19);
+  if (ageHours < 6) return Math.round(69 - ((ageHours - 3) / 3) * 19);
+  if (ageHours < 12) return Math.round(49 - ((ageHours - 6) / 6) * 19);
+  if (ageHours < 24) return Math.round(29 - ((ageHours - 12) / 12) * 19);
+  return Math.max(0, Math.round(9 - (ageHours - 24) / 24 * 9));
+}
+
+/**
  * Calculate velocity (rate of change) for a set of timestamps
  * Higher velocity = more articles in recent hours
  */

@@ -2,6 +2,7 @@
 
 import { feedCache } from './feedCache';
 import { isValidUrl, parseDate } from '../utils/security';
+import { calculateFreshnessScore } from '../utils/analytics';
 
 export interface SourceItem {
   id: number | string;
@@ -179,7 +180,7 @@ export class FeedService {
               }),
               rawDate: pubDate,
               url: item.link,
-              velocity: Math.floor(Math.random() * (100 - 40) + 40),
+              velocity: calculateFreshnessScore(pubDate),
               category: source.category
             };
           })

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 
 export interface Bookmark {
   id: string;
@@ -11,34 +10,33 @@ export interface Bookmark {
   notes?: string;
 }
 
+const STORAGE_KEY = 'bookmarks';
+
 export function useBookmarks() {
-  const { user } = useAuth();
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
 
   // Load bookmarks from localStorage on mount
   useEffect(() => {
-    if (user) {
-      const stored = localStorage.getItem(`bookmarks_${user.id}`);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setBookmarks(parsed.map((b: Bookmark) => ({
-            ...b,
-            savedAt: new Date(b.savedAt)
-          })));
-        } catch (e) {
-          console.error('Failed to parse bookmarks', e);
-        }
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setBookmarks(parsed.map((b: Bookmark) => ({
+          ...b,
+          savedAt: new Date(b.savedAt)
+        })));
+      } catch (e) {
+        console.error('Failed to parse bookmarks', e);
       }
     }
-  }, [user]);
+  }, []);
 
   // Save bookmarks to localStorage whenever they change
   useEffect(() => {
-    if (user && bookmarks.length >= 0) {
-      localStorage.setItem(`bookmarks_${user.id}`, JSON.stringify(bookmarks));
+    if (bookmarks.length >= 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
     }
-  }, [bookmarks, user]);
+  }, [bookmarks]);
 
   const addBookmark = (
     articleId: string,
@@ -47,10 +45,6 @@ export function useBookmarks() {
     source: string,
     notes?: string
   ) => {
-    if (!user) {
-      throw new Error('Must be logged in to bookmark');
-    }
-
     const newBookmark: Bookmark = {
       id: crypto.randomUUID(),
       articleId,
@@ -81,10 +75,8 @@ export function useBookmarks() {
   };
 
   const clearAllBookmarks = () => {
-    if (user) {
-      localStorage.removeItem(`bookmarks_${user.id}`);
-      setBookmarks([]);
-    }
+    localStorage.removeItem(STORAGE_KEY);
+    setBookmarks([]);
   };
 
   return {
