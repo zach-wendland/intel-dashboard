@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface Bookmark {
   id: string;
@@ -38,7 +38,7 @@ export function useBookmarks() {
     }
   }, [bookmarks]);
 
-  const addBookmark = (
+  const addBookmark = useCallback((
     articleId: string,
     articleTitle: string,
     articleUrl: string,
@@ -56,28 +56,28 @@ export function useBookmarks() {
     };
 
     setBookmarks(prev => [newBookmark, ...prev]);
-  };
+  }, []);
 
-  const removeBookmark = (bookmarkId: string) => {
+  const removeBookmark = useCallback((bookmarkId: string) => {
     setBookmarks(prev => prev.filter(b => b.id !== bookmarkId));
-  };
+  }, []);
 
-  const isBookmarked = (articleId: string): boolean => {
+  const isBookmarked = useCallback((articleId: string): boolean => {
     return bookmarks.some(b => b.articleId === articleId);
-  };
+  }, [bookmarks]);
 
-  const updateNotes = (bookmarkId: string, notes: string) => {
+  const updateNotes = useCallback((bookmarkId: string, notes: string) => {
     setBookmarks(prev =>
       prev.map(b =>
         b.id === bookmarkId ? { ...b, notes } : b
       )
     );
-  };
+  }, []);
 
-  const clearAllBookmarks = () => {
+  const clearAllBookmarks = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setBookmarks([]);
-  };
+  }, []);
 
   return {
     bookmarks,

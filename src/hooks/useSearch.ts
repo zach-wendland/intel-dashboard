@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { FeedItem, SearchFilters, DateRangeValue, FilterPreset } from '../types';
 import { extractTopics } from '../utils/analytics';
 import { useLocalStorage } from './useLocalStorage';
@@ -40,6 +40,19 @@ export function useSearch(feed: FeedItem[]): UseSearchReturn {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [presets, setPresets] = useLocalStorage<FilterPreset[]>('intel-filter-presets', []);
 
+  // Store cutoff time in ref - updated via effect, not during render
+  const cutoffTimeRef = useRef<number>(0);
+
+  // Update cutoff time when dateRange changes (effect, not render)
+  useEffect(() => {
+    if (filters.dateRange !== 'all') {
+      const hours = DATE_RANGE_HOURS[filters.dateRange];
+      cutoffTimeRef.current = Date.now() - hours * 60 * 60 * 1000;
+    } else {
+      cutoffTimeRef.current = 0;
+    }
+  }, [filters.dateRange]);
+
   // Update a single filter field
   const updateFilter = useCallback(<K extends keyof SearchFilters>(
     key: K,
@@ -79,11 +92,9 @@ export function useSearch(feed: FeedItem[]): UseSearchReturn {
         }
       }
 
-      // Date range filter
-      if (filters.dateRange !== 'all') {
-        const hours = DATE_RANGE_HOURS[filters.dateRange];
-        const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
-        if (item.rawDate < cutoff) {
+      // Date range filter (using ref-stored cutoff time)
+      if (filters.dateRange !== 'all' && cutoffTimeRef.current > 0) {
+        if (item.rawDate.getTime() < cutoffTimeRef.current) {
           return false;
         }
       }

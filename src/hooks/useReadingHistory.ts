@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface ReadingHistoryItem {
   articleId: string;
@@ -38,7 +38,7 @@ export function useReadingHistory() {
     }
   }, [history]);
 
-  const addToHistory = (
+  const addToHistory = useCallback((
     articleId: string,
     articleTitle: string,
     articleUrl: string,
@@ -63,20 +63,20 @@ export function useReadingHistory() {
       const updated = [newItem, ...filtered].slice(0, MAX_HISTORY_ITEMS);
       return updated;
     });
-  };
+  }, []);
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setHistory([]);
-  };
+  }, []);
 
-  const hasRead = (articleId: string): boolean => {
+  const hasRead = useCallback((articleId: string): boolean => {
     return history.some(item => item.articleId === articleId);
-  };
+  }, [history]);
 
-  const getHistoryByPerspective = (perspective: 'right' | 'left') => {
+  const getHistoryByPerspective = useCallback((perspective: 'right' | 'left') => {
     return history.filter(item => item.perspective === perspective);
-  };
+  }, [history]);
 
   return {
     history,

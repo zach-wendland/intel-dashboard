@@ -9,14 +9,18 @@ import {
   ShieldAlert,
   Server,
   Database,
-  TrendingUp,
   AlertTriangle,
   Cpu,
   Users,
   Zap,
   ExternalLink,
   RefreshCw,
-  Wifi
+  Wifi,
+  Bookmark,
+  BookmarkCheck,
+  Play,
+  Menu,
+  X
 } from 'lucide-react';
 import {
   LineChart,
@@ -30,7 +34,17 @@ import {
   Bar
 } from 'recharts';
 import { feedService, type FeedItem, type FeedStatus, type SourceItem } from '../services/feedService';
-import { extractTopics, calculateSentimentScore } from '../utils/analytics';
+
+// Import modular components
+import { FeedGridSkeleton } from './LoadingState';
+import { SearchBar } from './ui/SearchBar';
+import { TrendingWidget } from './ui/TrendingWidget';
+import { useSearch } from '../hooks/useSearch';
+import { useTrending } from '../hooks/useTrending';
+import { useBookmarks } from '../hooks/useBookmarks';
+import { useReadingHistory } from '../hooks/useReadingHistory';
+import type { MediaSettings } from '../types';
+import { MediaView } from './views/MediaView';
 
 // Import configurations from both perspectives
 import {
@@ -147,65 +161,6 @@ function getStatusColors(metrics: ReturnType<typeof calculateFeedMetrics>) {
   }
 }
 
-// Compute real metrics from feed data
-function computeRealMetrics(feedItems: FeedItem[]) {
-  // Topic frequency analysis
-  const topicCounts: Record<string, number> = {};
-  feedItems.forEach(item => {
-    const topic = item.topic || 'General';
-    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
-  });
-
-  // Convert to chart data format, sorted by count
-  const narrativeData = Object.entries(topicCounts)
-    .map(([topic, count]) => ({
-      topic,
-      value: Math.min(100, Math.round((count / feedItems.length) * 100 * 3)) // Scale for visibility
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
-
-  // Time-based volume analysis (group by hour) with topic tracking for sentiment
-  const hourlyVolume: Record<string, { count: number; topics: Record<string, number> }> = {};
-  feedItems.forEach(item => {
-    const hour = item.rawDate.getHours();
-    const hourKey = `${hour.toString().padStart(2, '0')}:00`;
-    if (!hourlyVolume[hourKey]) {
-      hourlyVolume[hourKey] = { count: 0, topics: {} };
-    }
-    hourlyVolume[hourKey].count++;
-
-    // Track topics for this hour to compute real sentiment
-    const topics = extractTopics(item.title);
-    topics.forEach(topic => {
-      hourlyVolume[hourKey].topics[topic] = (hourlyVolume[hourKey].topics[topic] || 0) + 1;
-    });
-  });
-
-  // Generate chart data for last 6 time slots with real sentiment scores
-  const chartData = Object.entries(hourlyVolume)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([name, data]) => ({
-      name,
-      volume: data.count * 20, // Scale for visibility
-      sentiment: calculateSentimentScore(data.topics) // Real sentiment based on topic distribution
-    }));
-
-  // Fill in missing hours if needed
-  if (chartData.length < 6) {
-    const defaultHours = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
-    defaultHours.forEach(hour => {
-      if (!chartData.find(d => d.name === hour)) {
-        chartData.push({ name: hour, volume: 0, sentiment: 50 });
-      }
-    });
-    chartData.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  return { chartData: chartData.slice(0, 6), narrativeData };
-}
-
 // Error Alert Component
 function FeedErrorAlert({
   errorMessages,
@@ -244,6 +199,16 @@ interface DashboardProps {
   onSwitchPerspective: () => void;
 }
 
+// Default media settings
+const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
+  rumbleChannels: [
+    { id: '1', name: 'Rumble Trending', embedId: 'c/Trending' },
+  ],
+  twitterAccounts: [
+    { handle: 'elonmusk', name: 'Elon Musk' },
+  ],
+};
+
 export default function Dashboard({ perspective, onSwitchPerspective }: DashboardProps) {
   const config = PERSPECTIVE_CONFIG[perspective];
 
@@ -254,10 +219,18 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [feedStatus, setFeedStatus] = useState<Record<string | number, FeedStatus>>({});
   const [errorMessages, setErrorMessages] = useState<Record<string | number, string>>({});
+  const [mediaSettings, setMediaSettings] = useState<MediaSettings>(DEFAULT_MEDIA_SETTINGS);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
-  // Computed metrics from real data
-  const [chartData, setChartData] = useState<{ name: string; volume: number; sentiment: number }[]>([]);
-  const [narrativeData, setNarrativeData] = useState<{ topic: string; value: number }[]>([]);
+  // Use modular hooks for search, trending, bookmarks, and history
+  const { filters, updateFilter, filteredFeed, resultCount } = useSearch(feed);
+  const { trending, chartData: trendingChartData, narrativeData: trendingNarrativeData } = useTrending(feed);
+  const { isBookmarked, addBookmark, removeBookmark } = useBookmarks();
+  const { hasRead, addToHistory } = useReadingHistory();
+
+  // Use trending data for charts (replaces inline computation)
+  const chartData = trendingChartData;
+  const narrativeData = trendingNarrativeData;
 
   const fetchLiveFeed = async () => {
     setIsRefreshing(true);
@@ -273,13 +246,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
       setFeedStatus(result.status);
       setErrorMessages(result.errors);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
-
-      // Compute real metrics from feed data
-      if (result.items.length > 0) {
-        const metrics = computeRealMetrics(result.items);
-        setChartData(metrics.chartData);
-        setNarrativeData(metrics.narrativeData);
-      }
+      // Note: chartData and narrativeData are now computed by useTrending hook
     } catch (e) {
       console.error("Global fetch error", e);
     } finally {
@@ -300,23 +267,32 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
 
   return (
     <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans ${config.selectionColor} selection:text-white`}>
-      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
+      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          {/* Logo and title */}
           <div className="flex items-center gap-3">
             <div className={`${config.accentBg} p-2 rounded-lg border ${config.accentBorder}`}>
-              <Activity className={`h-6 w-6 ${config.accentColor}`} />
+              <Activity className={`h-5 w-5 sm:h-6 sm:w-6 ${config.accentColor}`} />
             </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">{config.title}</h1>
+            <div className="hidden sm:block">
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">{config.title}</h1>
               <p className="text-xs text-slate-400 font-mono flex items-center gap-2">
                 PERSPECTIVE: {config.subtitle}
                 <span className="text-slate-600">|</span>
                 STATUS: {isRefreshing ? <span className="text-yellow-400 animate-pulse">SYNCING...</span> : <span className="text-green-400">ONLINE</span>}
               </p>
             </div>
+            {/* Compact mobile title */}
+            <div className="sm:hidden">
+              <h1 className="text-sm font-bold tracking-tight text-white">{config.subtitle}</h1>
+              <p className="text-[10px] text-slate-400 font-mono">
+                {isRefreshing ? <span className="text-yellow-400">SYNCING</span> : <span className="text-green-400">ONLINE</span>}
+              </p>
+            </div>
           </div>
 
-          <nav className="flex gap-1 bg-slate-800/50 p-1 rounded-lg">
+          {/* Desktop navigation */}
+          <nav className="hidden md:flex gap-1 bg-slate-800/50 p-1 rounded-lg">
             <button onClick={() => setActiveTab('grid')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'grid' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <Database className="h-4 w-4 inline mr-2" />Intel Grid
             </button>
@@ -327,9 +303,13 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
             <button onClick={() => setActiveTab('synthesis')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'synthesis' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <Cpu className="h-4 w-4 inline mr-2" />Synthesis
             </button>
+            <button onClick={() => setActiveTab('media')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'media' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+              <Play className="h-4 w-4 inline mr-2" />Media
+            </button>
           </nav>
 
-          <div className="flex items-center gap-4">
+          {/* Desktop action buttons */}
+          <div className="hidden md:flex items-center gap-4">
             <button
               onClick={onSwitchPerspective}
               className={`text-xs px-3 py-1.5 ${perspective === 'right' ? 'bg-blue-900/30 border-blue-700/50 text-blue-300 hover:bg-blue-900/50' : 'bg-red-900/30 border-red-700/50 text-red-300 hover:bg-red-900/50'} border rounded transition-all`}
@@ -348,7 +328,72 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               FEEDS: {metrics.okCount}/{metrics.totalCount}
             </div>
           </div>
+
+          {/* Mobile action buttons */}
+          <div className="flex md:hidden items-center gap-2">
+            <button onClick={fetchLiveFeed} disabled={isRefreshing} className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center bg-slate-800 border border-slate-700 rounded transition-all active:scale-95 ${isRefreshing ? 'opacity-70' : ''}`}>
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-400' : 'text-slate-300'}`} />
+            </button>
+            <div className="flex items-center gap-1.5 px-2 py-1.5 rounded text-xs border" style={{ backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }}>
+              <span className="relative flex h-2 w-2">
+                <span className={`${isRefreshing ? 'animate-spin' : 'animate-pulse'} absolute inline-flex h-full w-full rounded-full opacity-75`} style={{ backgroundColor: colors.indicator }}></span>
+                <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: colors.indicator }}></span>
+              </span>
+              <span className="font-mono">{metrics.okCount}/{metrics.totalCount}</span>
+            </div>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center bg-slate-800 border border-slate-700 rounded transition-all active:scale-95"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5 text-slate-300" /> : <Menu className="h-5 w-5 text-slate-300" />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile menu dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-slate-800 bg-slate-900/95 backdrop-blur-md">
+            <nav className="flex flex-col p-2 gap-1">
+              <button
+                onClick={() => { setActiveTab('grid'); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Database className="h-5 w-5" />
+                Intel Grid
+              </button>
+              <button
+                onClick={() => { setActiveTab('feed'); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'feed' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                {perspective === 'right' ? <Zap className="h-5 w-5" /> : <Users className="h-5 w-5" />}
+                Live Wire
+              </button>
+              <button
+                onClick={() => { setActiveTab('synthesis'); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'synthesis' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Cpu className="h-5 w-5" />
+                Synthesis
+              </button>
+              <button
+                onClick={() => { setActiveTab('media'); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'media' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Play className="h-5 w-5" />
+                Media
+              </button>
+              <div className="border-t border-slate-800 my-2"></div>
+              <button
+                onClick={() => { onSwitchPerspective(); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${perspective === 'right' ? 'bg-blue-900/30 text-blue-300' : 'bg-red-900/30 text-red-300'}`}
+              >
+                <Globe className="h-5 w-5" />
+                {config.switchLabel}
+              </button>
+            </nav>
+          </div>
+        )}
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
@@ -399,68 +444,139 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
         )}
 
         {activeTab === 'feed' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <Wifi className={`h-5 w-5 ${config.accentColor} animate-pulse`} />
-                  Live Wire Intercepts
-                  {lastUpdated && <span className="text-xs font-mono font-normal text-slate-500 ml-2">(UPDATED: {lastUpdated})</span>}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            {/* Main feed content */}
+            <div className="lg:col-span-2 space-y-3 sm:space-y-4 order-2 lg:order-1">
+              <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
+                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                  <Wifi className={`h-4 w-4 sm:h-5 sm:w-5 ${config.accentColor} animate-pulse`} />
+                  <span className="hidden sm:inline">Live Wire Intercepts</span>
+                  <span className="sm:hidden">Live Wire</span>
+                  {lastUpdated && <span className="text-[10px] sm:text-xs font-mono font-normal text-slate-500 ml-1 sm:ml-2">(UPDATED: {lastUpdated})</span>}
                 </h2>
+                <span className="text-[10px] sm:text-xs text-slate-500 font-mono">
+                  {resultCount} / {feed.length} articles
+                </span>
               </div>
 
-              <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
+              {/* Search bar for filtering articles */}
+              <SearchBar
+                value={filters.query}
+                onChange={(value) => updateFilter('query', value)}
+                placeholder="Search articles..."
+              />
+
+              <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[300px] sm:min-h-[400px]">
                 <FeedErrorAlert errorMessages={errorMessages} liveFeeds={config.liveFeeds} />
+
+                {/* Loading skeleton */}
+                {isRefreshing && feed.length === 0 && (
+                  <FeedGridSkeleton count={6} />
+                )}
+
+                {/* Empty state */}
                 {feed.length === 0 && !isRefreshing && (
-                  <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                    <AlertTriangle className="h-8 w-8 mb-2 opacity-50" />
-                    <p>No signals intercepted. Check connection.</p>
+                  <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-slate-500">
+                    <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 mb-2 opacity-50" />
+                    <p className="text-sm">No signals intercepted. Check connection.</p>
                   </div>
                 )}
 
-                {feed.map((item) => (
-                  <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-4 border-b border-slate-800 hover:bg-slate-800/80 transition-all group cursor-pointer relative">
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ExternalLink className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-xs font-mono text-blue-400 bg-blue-900/10 px-1.5 py-0.5 rounded">{item.topic.toUpperCase()}</span>
-                      <span className="text-xs font-mono text-slate-500">{item.time}</span>
-                    </div>
-                    <h3 className="text-sm font-medium text-slate-200 group-hover:text-blue-400 transition-colors mb-2 pr-6 line-clamp-2">{item.title}</h3>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 flex items-center gap-1 group-hover:text-slate-300">
-                          <Globe className="h-3 w-3" />
-                          {item.source}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-slate-600">FRESHNESS:</span>
-                        <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${perspective === 'right' ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}
-                            style={{ width: `${item.velocity}%` }}
-                          ></div>
+                {/* No results from search */}
+                {feed.length > 0 && filteredFeed.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-slate-500">
+                    <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 mb-2 opacity-50" />
+                    <p className="text-sm">No articles match your search.</p>
+                  </div>
+                )}
+
+                {/* Feed items with bookmark buttons */}
+                {filteredFeed.map((item) => {
+                  const bookmarked = isBookmarked(item.id);
+                  const read = hasRead(item.id);
+
+                  return (
+                    <div key={item.id} className={`relative border-b border-slate-800 ${read ? 'opacity-70' : ''}`}>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => addToHistory(item.id, item.title, item.url, item.source, perspective)}
+                        className="block p-3 sm:p-4 hover:bg-slate-800/80 transition-all group cursor-pointer pr-12 sm:pr-16 active:bg-slate-800/60"
+                      >
+                        <div className="flex justify-between items-start mb-1 gap-2">
+                          <span className="text-[10px] sm:text-xs font-mono text-blue-400 bg-blue-900/10 px-1.5 py-0.5 rounded truncate max-w-[120px] sm:max-w-none">{item.topic.toUpperCase()}</span>
+                          <span className="text-[10px] sm:text-xs font-mono text-slate-500 flex-shrink-0">{item.time}</span>
                         </div>
-                      </div>
+                        <h3 className={`text-sm font-medium ${read ? 'text-slate-400' : 'text-slate-200'} group-hover:text-blue-400 transition-colors mb-2 pr-4 sm:pr-6 line-clamp-3 sm:line-clamp-2`}>
+                          {item.title}
+                        </h3>
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] sm:text-xs text-slate-400 flex items-center gap-1 group-hover:text-slate-300">
+                              <Globe className="h-3 w-3" />
+                              <span className="truncate max-w-[100px] sm:max-w-none">{item.source}</span>
+                            </span>
+                          </div>
+                          <div className="hidden sm:flex items-center gap-2">
+                            <span className="text-xs font-mono text-slate-600">FRESHNESS:</span>
+                            <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${perspective === 'right' ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}
+                                style={{ width: `${item.velocity}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </a>
+
+                      {/* Bookmark button - larger tap target on mobile */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (bookmarked) {
+                            removeBookmark(item.id);
+                          } else {
+                            addBookmark(item.id, item.title, item.url, item.source);
+                          }
+                        }}
+                        className={`absolute top-3 sm:top-4 right-2 sm:right-4 p-2 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center rounded-lg transition-all active:scale-95 ${
+                          bookmarked
+                            ? 'text-yellow-400 bg-yellow-900/20'
+                            : 'text-slate-500 hover:text-yellow-400 hover:bg-yellow-900/10'
+                        }`}
+                        title={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
+                      >
+                        {bookmarked ? <BookmarkCheck className="h-5 w-5 sm:h-4 sm:w-4" /> : <Bookmark className="h-5 w-5 sm:h-4 sm:w-4" />}
+                      </button>
                     </div>
-                  </a>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+            {/* Sidebar - shows first on mobile for quick access to trending */}
+            <div className="space-y-4 sm:space-y-6 order-1 lg:order-2">
+              {/* Trending Widget first on mobile */}
+              <div className="lg:hidden">
+                <TrendingWidget
+                  trending={trending}
+                  onTopicClick={(topic) => updateFilter('query', topic)}
+                  maxItems={5}
+                />
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4">
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-300 mb-3 sm:mb-4 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-yellow-500" />
                   {config.sidebarTitle}
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {config.sidebarItems.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
+                    <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
                       <span className="text-slate-400">{item}</span>
-                      <span className={`${perspective === 'right' ? 'text-red-400' : 'text-blue-400'} font-mono`}>
+                      <span className={`${perspective === 'right' ? 'text-red-400' : 'text-blue-400'} font-mono text-[10px] sm:text-xs`}>
                         {perspective === 'right' ? 'CRITICAL' : 'HIGH'}
                       </span>
                     </div>
@@ -468,42 +584,35 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-blue-500" />
-                  {perspective === 'right' ? 'Top Entities Tracked' : 'Trending Topics'}
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {config.trendingTags.map((tag) => (
-                      <span key={tag} className="text-xs px-2 py-1 bg-slate-800 text-slate-300 rounded border border-slate-700 hover:border-slate-500 cursor-pointer hover:bg-slate-700 transition-colors">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+              {/* Trending Widget for desktop */}
+              <div className="hidden lg:block">
+                <TrendingWidget
+                  trending={trending}
+                  onTopicClick={(topic) => updateFilter('query', topic)}
+                  maxItems={8}
+                />
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'synthesis' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="lg:col-span-2 bg-green-900/10 border border-green-700/30 p-4 rounded-lg mb-4 flex items-center gap-3">
-              <Activity className="h-5 w-5 text-green-500" />
-              <p className="text-sm text-green-200">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="lg:col-span-2 bg-green-900/10 border border-green-700/30 p-3 sm:p-4 rounded-lg mb-2 sm:mb-4 flex items-start sm:items-center gap-3">
+              <Activity className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5 sm:mt-0" />
+              <p className="text-xs sm:text-sm text-green-200">
                 <strong>LIVE DATA:</strong> Charts below are computed from <em>actual feed data</em>. Topic distribution and volume are derived from {feed.length} articles.
               </p>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-slate-200 mb-6">Article Volume Over Time</h3>
-              <div className="h-64 w-full">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-200 mb-4 sm:mb-6">Article Volume Over Time</h3>
+              <div className="h-48 sm:h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData.length > 0 ? chartData : [{ name: 'No data', volume: 0, sentiment: 0 }]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
+                    <XAxis dataKey="name" stroke="#64748b" fontSize={10} tick={{ fontSize: 10 }} />
+                    <YAxis stroke="#64748b" fontSize={10} tick={{ fontSize: 10 }} width={30} />
                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} itemStyle={{ color: '#e2e8f0' }} />
                     <Line type="monotone" dataKey="volume" stroke="#3b82f6" strokeWidth={2} dot={false} name="Volume" />
                   </LineChart>
@@ -511,14 +620,14 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-slate-200 mb-6">Topic Distribution (from feeds)</h3>
-              <div className="h-64 w-full">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-200 mb-4 sm:mb-6">Topic Distribution (from feeds)</h3>
+              <div className="h-48 sm:h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={narrativeData.length > 0 ? narrativeData : [{ topic: 'No data', value: 0 }]} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-                    <XAxis type="number" stroke="#64748b" fontSize={12} />
-                    <YAxis dataKey="topic" type="category" stroke="#94a3b8" fontSize={12} width={120} />
+                    <XAxis type="number" stroke="#64748b" fontSize={10} tick={{ fontSize: 10 }} />
+                    <YAxis dataKey="topic" type="category" stroke="#94a3b8" fontSize={10} tick={{ fontSize: 10 }} width={80} />
                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} cursor={{ fill: '#1e293b' }} />
                     <Bar dataKey="value" fill={perspective === 'right' ? '#6366f1' : '#3b82f6'} radius={[0, 4, 4, 0]} name="Articles %" />
                   </BarChart>
@@ -526,6 +635,13 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'media' && (
+          <MediaView
+            settings={mediaSettings}
+            onSettingsChange={setMediaSettings}
+          />
         )}
       </main>
     </div>
