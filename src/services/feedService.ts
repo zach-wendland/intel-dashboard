@@ -1,4 +1,4 @@
-// Centralized feed fetching service with caching and error handling
+// Centralized feed fetching service with multi-proxy distribution and fallback
 
 import { feedCache } from './feedCache';
 import { isValidUrl, parseDate } from '../utils/security';
@@ -48,9 +48,91 @@ export interface FeedResult {
   errors: Record<string | number, string>;
 }
 
+// Proxy configuration for load distribution
+interface ProxyConfig {
+  name: string;
+  buildUrl: (feedUrl: string) => string;
+  parseResponse: (response: Response) => Promise<RSSResponse>;
+}
+
+// Simple XML parser for RSS feeds (used with CORS proxies)
+function parseRSSXml(xmlText: string): RSSItem[] {
+  const items: RSSItem[] = [];
+
+  // Extract items using regex (lightweight, no external deps)
+  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+  let match;
+
+  while ((match = itemRegex.exec(xmlText)) !== null) {
+    const itemXml = match[1];
+
+    const getTagContent = (tag: string): string | undefined => {
+      // Handle CDATA sections
+      const cdataRegex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i');
+      const cdataMatch = cdataRegex.exec(itemXml);
+      if (cdataMatch) return cdataMatch[1].trim();
+
+      // Handle regular content
+      const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+      const tagMatch = regex.exec(itemXml);
+      return tagMatch ? tagMatch[1].trim() : undefined;
+    };
+
+    items.push({
+      title: getTagContent('title'),
+      link: getTagContent('link'),
+      pubDate: getTagContent('pubDate') || getTagContent('dc:date'),
+      description: getTagContent('description'),
+      content: getTagContent('content:encoded') || getTagContent('content'),
+    });
+  }
+
+  return items;
+}
+
+// Available proxy configurations
+const RSS_PROXIES: ProxyConfig[] = [
+  {
+    name: 'rss2json',
+    buildUrl: (feedUrl) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`,
+    parseResponse: async (response) => {
+      const data = await response.json();
+      return data as RSSResponse;
+    }
+  },
+  {
+    name: 'allorigins',
+    buildUrl: (feedUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`,
+    parseResponse: async (response) => {
+      const text = await response.text();
+      const items = parseRSSXml(text);
+      return {
+        status: items.length > 0 ? 'ok' : 'error',
+        items,
+        message: items.length === 0 ? 'No items parsed from XML' : undefined
+      };
+    }
+  },
+  {
+    name: 'corsproxy',
+    buildUrl: (feedUrl) => `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`,
+    parseResponse: async (response) => {
+      const text = await response.text();
+      const items = parseRSSXml(text);
+      return {
+        status: items.length > 0 ? 'ok' : 'error',
+        items,
+        message: items.length === 0 ? 'No items parsed from XML' : undefined
+      };
+    }
+  }
+];
+
 export class FeedService {
   private static instance: FeedService;
   private requestCache: Map<string, Promise<FeedItem[]>> = new Map();
+  private proxyIndex: number = 0;
+  private proxyFailures: Map<string, number> = new Map();
 
   private constructor() {}
 
@@ -62,7 +144,43 @@ export class FeedService {
   }
 
   /**
-   * Fetch feeds from multiple sources with caching
+   * Get next proxy using round-robin with failure awareness
+   */
+  private getNextProxy(): ProxyConfig {
+    // Find a proxy that hasn't failed too many times recently
+    const maxAttempts = RSS_PROXIES.length;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const proxy = RSS_PROXIES[this.proxyIndex];
+      this.proxyIndex = (this.proxyIndex + 1) % RSS_PROXIES.length;
+
+      const failures = this.proxyFailures.get(proxy.name) || 0;
+      // Skip proxies with 3+ recent failures, but always try if all are failing
+      if (failures < 3 || i === maxAttempts - 1) {
+        return proxy;
+      }
+    }
+
+    return RSS_PROXIES[0]; // Fallback to first proxy
+  }
+
+  /**
+   * Record proxy success - reset failure count
+   */
+  private recordProxySuccess(proxyName: string): void {
+    this.proxyFailures.set(proxyName, 0);
+  }
+
+  /**
+   * Record proxy failure - increment failure count
+   */
+  private recordProxyFailure(proxyName: string): void {
+    const current = this.proxyFailures.get(proxyName) || 0;
+    this.proxyFailures.set(proxyName, current + 1);
+  }
+
+  /**
+   * Fetch feeds from multiple sources with caching and load distribution
    */
   async fetchFeeds(sources: SourceItem[]): Promise<FeedResult> {
     const cacheKey = `feeds_${sources.map(s => s.id).join('_')}`;
@@ -77,7 +195,7 @@ export class FeedService {
     const newStatus: Record<string | number, FeedStatus> = {};
     const errors: Record<string | number, string> = {};
 
-    // Fetch all feeds in parallel
+    // Fetch all feeds in parallel with distributed proxies
     const promises = sources.map(source => this.fetchSingleFeed(source, newStatus, errors));
     const results = await Promise.all(promises);
 
@@ -98,7 +216,7 @@ export class FeedService {
   }
 
   /**
-   * Fetch a single feed source
+   * Fetch a single feed source with automatic fallback
    */
   private async fetchSingleFeed(
     source: SourceItem,
@@ -120,8 +238,8 @@ export class FeedService {
       return pendingRequest;
     }
 
-    // Create new request
-    const request = this._fetchFeed(source, statusMap, errorMap, cacheKey);
+    // Create new request with fallback support
+    const request = this._fetchFeedWithFallback(source, statusMap, errorMap, cacheKey);
     this.requestCache.set(cacheKey, request);
 
     try {
@@ -133,7 +251,10 @@ export class FeedService {
     }
   }
 
-  private async _fetchFeed(
+  /**
+   * Fetch feed with automatic fallback to alternate proxies
+   */
+  private async _fetchFeedWithFallback(
     source: SourceItem,
     statusMap: Record<string | number, FeedStatus>,
     errorMap: Record<string | number, string>,
@@ -141,24 +262,63 @@ export class FeedService {
   ): Promise<FeedItem[]> {
     statusMap[source.id] = 'loading';
 
+    // Try each proxy until one succeeds
+    const triedProxies = new Set<string>();
+    let lastError = '';
+
+    for (let attempt = 0; attempt < RSS_PROXIES.length; attempt++) {
+      const proxy = this.getNextProxy();
+
+      // Skip if we already tried this proxy
+      if (triedProxies.has(proxy.name)) {
+        continue;
+      }
+      triedProxies.add(proxy.name);
+
+      try {
+        const result = await this._fetchWithProxy(source, proxy, cacheKey);
+        if (result.length > 0) {
+          statusMap[source.id] = 'ok';
+          this.recordProxySuccess(proxy.name);
+          return result;
+        }
+        lastError = `${proxy.name}: No items`;
+      } catch (error) {
+        this.recordProxyFailure(proxy.name);
+        lastError = `${proxy.name}: ${error instanceof Error ? error.message : String(error)}`;
+        console.warn(`Proxy ${proxy.name} failed for ${source.name}:`, lastError);
+        // Continue to next proxy
+      }
+    }
+
+    // All proxies failed
+    statusMap[source.id] = 'error';
+    errorMap[source.id] = lastError.substring(0, 50);
+    return [];
+  }
+
+  /**
+   * Fetch feed using a specific proxy
+   */
+  private async _fetchWithProxy(
+    source: SourceItem,
+    proxy: ProxyConfig,
+    cacheKey: string
+  ): Promise<FeedItem[]> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`;
+      const apiUrl = proxy.buildUrl(source.url);
       const response = await fetch(apiUrl, { signal: controller.signal });
 
       if (!response.ok) {
-        statusMap[source.id] = 'error';
-        errorMap[source.id] = `HTTP ${response.status}`;
-        return [];
+        throw new Error(`HTTP ${response.status}`);
       }
 
-      const data: RSSResponse = await response.json();
+      const data = await proxy.parseResponse(response);
 
       if (data.status === 'ok' && data.items && data.items.length > 0) {
-        statusMap[source.id] = 'ok';
-
         const validItems = data.items
           .filter(item => item.title && item.link && item.pubDate)
           .map((item: RSSItem, index: number) => {
@@ -187,24 +347,14 @@ export class FeedService {
           .filter((item): item is FeedItem => item !== null);
 
         // Cache individual feed result
-        feedCache.set(cacheKey, validItems, 15);
+        if (validItems.length > 0) {
+          feedCache.set(cacheKey, validItems, 15);
+        }
 
         return validItems;
       } else {
-        statusMap[source.id] = 'error';
-        errorMap[source.id] = data.message || 'No items returned';
-        return [];
+        throw new Error(data.message || 'No items returned');
       }
-    } catch (error) {
-      statusMap[source.id] = 'error';
-
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        errorMap[source.id] = 'Request timeout (10s)';
-      } else {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        errorMap[source.id] = errorMsg.substring(0, 50);
-      }
-      return [];
     } finally {
       clearTimeout(timeoutId);
     }
@@ -223,6 +373,13 @@ export class FeedService {
    */
   clearSourceCache(sourceId: string | number): void {
     feedCache.delete(`feed_${sourceId}`);
+  }
+
+  /**
+   * Reset proxy failure counts (useful after network recovery)
+   */
+  resetProxyHealth(): void {
+    this.proxyFailures.clear();
   }
 }
 
