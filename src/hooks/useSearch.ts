@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { FeedItem, SearchFilters, DateRangeValue, FilterPreset } from '../types';
 import { extractTopics } from '../utils/analytics';
 import { useLocalStorage } from './useLocalStorage';
@@ -33,25 +33,19 @@ const DATE_RANGE_HOURS: Record<DateRangeValue, number> = {
   'all': Infinity,
 };
 
+// Compute cutoff time from dateRange (pure function, safe in render)
+function computeCutoffTime(dateRange: DateRangeValue): number {
+  if (dateRange === 'all') return 0;
+  const hours = DATE_RANGE_HOURS[dateRange];
+  return Date.now() - hours * 60 * 60 * 1000;
+}
+
 /**
  * Hook for search and filtering functionality
  */
 export function useSearch(feed: FeedItem[]): UseSearchReturn {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [presets, setPresets] = useLocalStorage<FilterPreset[]>('intel-filter-presets', []);
-
-  // Store cutoff time in ref - updated via effect, not during render
-  const cutoffTimeRef = useRef<number>(0);
-
-  // Update cutoff time when dateRange changes (effect, not render)
-  useEffect(() => {
-    if (filters.dateRange !== 'all') {
-      const hours = DATE_RANGE_HOURS[filters.dateRange];
-      cutoffTimeRef.current = Date.now() - hours * 60 * 60 * 1000;
-    } else {
-      cutoffTimeRef.current = 0;
-    }
-  }, [filters.dateRange]);
 
   // Update a single filter field
   const updateFilter = useCallback(<K extends keyof SearchFilters>(
@@ -68,6 +62,9 @@ export function useSearch(feed: FeedItem[]): UseSearchReturn {
 
   // Filter the feed based on current filters
   const filteredFeed = useMemo(() => {
+    // Compute cutoff time inside useMemo (pure derivation, no ref access)
+    const cutoffTime = computeCutoffTime(filters.dateRange);
+
     return feed.filter(item => {
       // Full-text search on title
       if (filters.query) {
@@ -92,11 +89,9 @@ export function useSearch(feed: FeedItem[]): UseSearchReturn {
         }
       }
 
-      // Date range filter (using ref-stored cutoff time)
-      if (filters.dateRange !== 'all' && cutoffTimeRef.current > 0) {
-        if (item.rawDate.getTime() < cutoffTimeRef.current) {
-          return false;
-        }
+      // Date range filter
+      if (cutoffTime > 0 && item.rawDate.getTime() < cutoffTime) {
+        return false;
       }
 
       // Velocity threshold

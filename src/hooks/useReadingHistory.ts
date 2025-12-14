@@ -12,30 +12,29 @@ export interface ReadingHistoryItem {
 const MAX_HISTORY_ITEMS = 100;
 const STORAGE_KEY = 'reading_history';
 
-export function useReadingHistory() {
-  const [history, setHistory] = useState<ReadingHistoryItem[]>([]);
-
-  // Load history from localStorage on mount
-  useEffect(() => {
+// Helper to parse stored history with Date conversion
+function loadHistoryFromStorage(): ReadingHistoryItem[] {
+  try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setHistory(parsed.map((item: ReadingHistoryItem) => ({
-          ...item,
-          readAt: new Date(item.readAt)
-        })));
-      } catch (e) {
-        console.error('Failed to parse reading history', e);
-      }
-    }
-  }, []);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return parsed.map((item: ReadingHistoryItem) => ({
+      ...item,
+      readAt: new Date(item.readAt)
+    }));
+  } catch (e) {
+    console.error('Failed to parse reading history', e);
+    return [];
+  }
+}
+
+export function useReadingHistory() {
+  // Use lazy initializer to load synchronously on first render
+  const [history, setHistory] = useState<ReadingHistoryItem[]>(loadHistoryFromStorage);
 
   // Save history to localStorage whenever it changes
   useEffect(() => {
-    if (history.length >= 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
 
   const addToHistory = useCallback((

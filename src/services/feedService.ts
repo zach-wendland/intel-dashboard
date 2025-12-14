@@ -1,46 +1,12 @@
 // Centralized feed fetching service with multi-proxy distribution and fallback
 
 import { feedCache } from './feedCache';
-import { isValidUrl, parseDate } from '../utils/security';
+import { isValidUrl, parseDate } from '../utils/validators';
 import { calculateFreshnessScore } from '../utils/analytics';
+import type { FeedItem, SourceItem, RSSItem, RSSResponse, FeedStatus } from '../types';
 
-export interface SourceItem {
-  id: number | string;
-  name: string;
-  category: string;
-  tier?: string;
-  focus?: string;
-  url: string;
-  topic_map?: string;
-}
-
-export interface FeedItem {
-  id: string;
-  title: string;
-  source: string;
-  topic: string;
-  time: string;
-  rawDate: Date;
-  url: string;
-  velocity: number;
-  category: string;
-}
-
-interface RSSItem {
-  title?: string;
-  pubDate?: string;
-  link?: string;
-  description?: string;
-  content?: string;
-}
-
-interface RSSResponse {
-  status: 'ok' | 'error';
-  message?: string;
-  items?: RSSItem[];
-}
-
-export type FeedStatus = 'ok' | 'error' | 'loading';
+// Re-export types for consumers
+export type { FeedItem, SourceItem, FeedStatus };
 
 export interface FeedResult {
   items: FeedItem[];

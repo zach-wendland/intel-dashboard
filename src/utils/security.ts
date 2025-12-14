@@ -1,16 +1,5 @@
 // Security utilities for input validation and sanitization
-
-/**
- * Validates URL to prevent XSS attacks
- */
-export function isValidUrl(urlString: string): boolean {
-  try {
-    const url = new URL(urlString);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
+// Note: isValidUrl and parseDate are in validators.ts to avoid duplication
 
 /**
  * Sanitizes string input to prevent XSS
@@ -117,15 +106,6 @@ export class RateLimiter {
   reset(key: string): void {
     this.attempts.delete(key);
   }
-}
-
-/**
- * Validates and parses date strings safely
- */
-export function parseDate(dateString?: string): Date | null {
-  if (!dateString) return null;
-  const date = new Date(dateString);
-  return isNaN(date.getTime()) ? null : date;
 }
 
 /**

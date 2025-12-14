@@ -73,8 +73,15 @@ export class PerformanceMonitor {
    * Log current memory usage (if available)
    */
   logMemoryUsage(): void {
-    if ('memory' in performance) {
-      const memory = (performance as any).memory;
+    // Chrome-specific performance.memory API
+    interface PerformanceMemory {
+      usedJSHeapSize: number;
+      totalJSHeapSize: number;
+      jsHeapSizeLimit: number;
+    }
+    const perf = performance as Performance & { memory?: PerformanceMemory };
+    if (perf.memory) {
+      const memory = perf.memory;
       console.log('Memory Usage:', {
         used: `${(memory.usedJSHeapSize / 1048576).toFixed(2)} MB`,
         total: `${(memory.totalJSHeapSize / 1048576).toFixed(2)} MB`,
@@ -103,7 +110,7 @@ export function usePerformanceMonitor(componentName: string) {
 /**
  * Debounce function for performance optimization
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -123,7 +130,7 @@ export function debounce<T extends (...args: any[]) => any>(
 /**
  * Throttle function for performance optimization
  */
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
   func: T,
   limit: number
 ): (...args: Parameters<T>) => void {

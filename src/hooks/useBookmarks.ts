@@ -12,30 +12,29 @@ export interface Bookmark {
 
 const STORAGE_KEY = 'bookmarks';
 
-export function useBookmarks() {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-
-  // Load bookmarks from localStorage on mount
-  useEffect(() => {
+// Helper to parse stored bookmarks with Date conversion
+function loadBookmarksFromStorage(): Bookmark[] {
+  try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setBookmarks(parsed.map((b: Bookmark) => ({
-          ...b,
-          savedAt: new Date(b.savedAt)
-        })));
-      } catch (e) {
-        console.error('Failed to parse bookmarks', e);
-      }
-    }
-  }, []);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return parsed.map((b: Bookmark) => ({
+      ...b,
+      savedAt: new Date(b.savedAt)
+    }));
+  } catch (e) {
+    console.error('Failed to parse bookmarks', e);
+    return [];
+  }
+}
+
+export function useBookmarks() {
+  // Use lazy initializer to load synchronously on first render
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(loadBookmarksFromStorage);
 
   // Save bookmarks to localStorage whenever they change
   useEffect(() => {
-    if (bookmarks.length >= 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
   }, [bookmarks]);
 
   const addBookmark = useCallback((

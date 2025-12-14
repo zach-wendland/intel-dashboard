@@ -1,5 +1,5 @@
 // Unified Dashboard Component - Consolidates Left and Right Wing Dashboards
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Activity,
   Globe,
@@ -18,7 +18,10 @@ import {
   Wifi,
   Play,
   Menu,
-  X
+  X,
+  Bookmark,
+  History,
+  Trash2
 } from 'lucide-react';
 import {
   LineChart,
@@ -36,7 +39,9 @@ import { feedService, type FeedItem, type FeedStatus, type SourceItem } from '..
 // Import modular components
 import { FeedGridSkeleton } from './LoadingState';
 import { SearchBar } from './ui/SearchBar';
+import { FilterPanel } from './ui/FilterPanel';
 import { TrendingWidget } from './ui/TrendingWidget';
+import { TopicHeatmap } from './ui/TopicHeatmap';
 import { useSearch } from '../hooks/useSearch';
 import { useTrending } from '../hooks/useTrending';
 import { useBookmarks } from '../hooks/useBookmarks';
@@ -211,7 +216,7 @@ const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
 export default function Dashboard({ perspective, onSwitchPerspective }: DashboardProps) {
   const config = PERSPECTIVE_CONFIG[perspective];
 
-  const [activeTab, setActiveTab] = useState<string>('feed');
+  const [activeTab, setActiveTab] = useState<'grid' | 'feed' | 'synthesis' | 'media' | 'bookmarks' | 'history'>('feed');
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [filter, setFilter] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -222,16 +227,16 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   // Use modular hooks for search, trending, bookmarks, and history
-  const { filters, updateFilter, filteredFeed, resultCount } = useSearch(feed);
-  const { trending, chartData: trendingChartData, narrativeData: trendingNarrativeData } = useTrending(feed);
-  const { isBookmarked, addBookmark, removeBookmark } = useBookmarks();
-  const { hasRead, addToHistory } = useReadingHistory();
+  const { filters, updateFilter, resetFilters, filteredFeed, resultCount, presets, savePreset, loadPreset, deletePreset } = useSearch(feed);
+  const { trending, chartData: trendingChartData, narrativeData: trendingNarrativeData, sourceMatrix } = useTrending(feed);
+  const { bookmarks, isBookmarked, addBookmark, removeBookmark, clearAllBookmarks } = useBookmarks();
+  const { history, hasRead, addToHistory, clearHistory, getHistoryByPerspective } = useReadingHistory();
 
   // Use trending data for charts (replaces inline computation)
   const chartData = trendingChartData;
   const narrativeData = trendingNarrativeData;
 
-  const fetchLiveFeed = async () => {
+  const fetchLiveFeed = useCallback(async () => {
     setIsRefreshing(true);
     setErrorMessages({});
 
@@ -251,11 +256,11 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [config.liveFeeds]);
 
   useEffect(() => {
     fetchLiveFeed();
-  }, [perspective]); // Re-fetch when perspective changes
+  }, [fetchLiveFeed]); // Re-fetch when perspective changes (via config.liveFeeds)
 
   const filteredSources = filter === 'ALL'
     ? config.sources
@@ -298,6 +303,13 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
             <button onClick={() => setActiveTab('feed')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'feed' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               {perspective === 'right' ? <Zap className="h-4 w-4 inline mr-2" /> : <Users className="h-4 w-4 inline mr-2" />}
               Live Wire
+            </button>
+            <button onClick={() => setActiveTab('bookmarks')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'bookmarks' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+              <Bookmark className="h-4 w-4 inline mr-2" />Bookmarks
+              {bookmarks.length > 0 && <span className="ml-1 text-xs bg-yellow-500/20 text-yellow-400 px-1.5 rounded">{bookmarks.length}</span>}
+            </button>
+            <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+              <History className="h-4 w-4 inline mr-2" />History
             </button>
             <button onClick={() => setActiveTab('synthesis')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'synthesis' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <Cpu className="h-4 w-4 inline mr-2" />Synthesis
@@ -367,6 +379,21 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               >
                 {perspective === 'right' ? <Zap className="h-5 w-5" /> : <Users className="h-5 w-5" />}
                 Live Wire
+              </button>
+              <button
+                onClick={() => { setActiveTab('bookmarks'); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'bookmarks' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <Bookmark className="h-5 w-5" />
+                Bookmarks
+                {bookmarks.length > 0 && <span className="ml-auto text-xs bg-yellow-500/20 text-yellow-400 px-1.5 rounded">{bookmarks.length}</span>}
+              </button>
+              <button
+                onClick={() => { setActiveTab('history'); setMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'history' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+              >
+                <History className="h-5 w-5" />
+                History
               </button>
               <button
                 onClick={() => { setActiveTab('synthesis'); setMobileMenuOpen(false); }}
@@ -465,6 +492,19 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                 placeholder="Search articles..."
               />
 
+              {/* Filter panel for advanced filtering */}
+              <FilterPanel
+                filters={filters}
+                onFilterChange={updateFilter}
+                onReset={resetFilters}
+                presets={presets}
+                onSavePreset={savePreset}
+                onLoadPreset={loadPreset}
+                onDeletePreset={deletePreset}
+                resultCount={resultCount}
+                totalCount={feed.length}
+              />
+
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[300px] sm:min-h-[400px]">
                 <FeedErrorAlert errorMessages={errorMessages} liveFeeds={config.liveFeeds} />
 
@@ -545,6 +585,133 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
           </div>
         )}
 
+        {activeTab === 'bookmarks' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                <Bookmark className={`h-4 w-4 sm:h-5 sm:w-5 ${config.accentColor}`} />
+                <span>Saved Bookmarks</span>
+                <span className="text-xs font-mono font-normal text-slate-500 ml-2">({bookmarks.length} items)</span>
+              </h2>
+              {bookmarks.length > 0 && (
+                <button
+                  onClick={clearAllBookmarks}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs bg-red-900/20 text-red-400 hover:bg-red-900/30 border border-red-800/50 rounded transition-all"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[300px]">
+              {bookmarks.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                  <Bookmark className="h-8 w-8 mb-2 opacity-50" />
+                  <p className="text-sm">No bookmarks yet.</p>
+                  <p className="text-xs text-slate-600 mt-1">Click the bookmark icon on any article to save it.</p>
+                </div>
+              ) : (
+                bookmarks.map((bookmark) => (
+                  <div key={bookmark.id} className="relative border-b border-slate-800">
+                    <a
+                      href={bookmark.articleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block p-3 sm:p-4 hover:bg-slate-800/80 transition-all group cursor-pointer pr-12 sm:pr-16"
+                    >
+                      <div className="flex justify-between items-start mb-1 gap-2">
+                        <span className="text-[10px] sm:text-xs font-mono text-yellow-400 bg-yellow-900/10 px-1.5 py-0.5 rounded">
+                          BOOKMARKED
+                        </span>
+                        <span className="text-[10px] sm:text-xs font-mono text-slate-500 flex-shrink-0">
+                          {new Date(bookmark.savedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-medium text-slate-200 group-hover:text-blue-400 transition-colors mb-2 pr-4 sm:pr-6 line-clamp-2">
+                        {bookmark.articleTitle}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] sm:text-xs text-slate-400 flex items-center gap-1">
+                          <Globe className="h-3 w-3" />
+                          {bookmark.source}
+                        </span>
+                      </div>
+                    </a>
+                    <button
+                      onClick={() => removeBookmark(bookmark.id)}
+                      className="absolute top-3 sm:top-4 right-2 sm:right-4 p-2 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center rounded-lg transition-all active:scale-95 text-red-400 hover:bg-red-900/20"
+                      title="Remove bookmark"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                <History className={`h-4 w-4 sm:h-5 sm:w-5 ${config.accentColor}`} />
+                <span>Reading History</span>
+                <span className="text-xs font-mono font-normal text-slate-500 ml-2">({getHistoryByPerspective(perspective).length} items)</span>
+              </h2>
+              {history.length > 0 && (
+                <button
+                  onClick={clearHistory}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs bg-red-900/20 text-red-400 hover:bg-red-900/30 border border-red-800/50 rounded transition-all"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear History
+                </button>
+              )}
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[300px]">
+              {getHistoryByPerspective(perspective).length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                  <History className="h-8 w-8 mb-2 opacity-50" />
+                  <p className="text-sm">No reading history yet.</p>
+                  <p className="text-xs text-slate-600 mt-1">Articles you read will appear here.</p>
+                </div>
+              ) : (
+                getHistoryByPerspective(perspective).map((item) => (
+                  <div key={item.articleId} className="relative border-b border-slate-800">
+                    <a
+                      href={item.articleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block p-3 sm:p-4 hover:bg-slate-800/80 transition-all group cursor-pointer"
+                    >
+                      <div className="flex justify-between items-start mb-1 gap-2">
+                        <span className="text-[10px] sm:text-xs font-mono text-slate-500 bg-slate-800/50 px-1.5 py-0.5 rounded">
+                          READ
+                        </span>
+                        <span className="text-[10px] sm:text-xs font-mono text-slate-500 flex-shrink-0">
+                          {new Date(item.readAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-medium text-slate-400 group-hover:text-blue-400 transition-colors mb-2 line-clamp-2">
+                        {item.articleTitle}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-1">
+                          <Globe className="h-3 w-3" />
+                          {item.source}
+                        </span>
+                      </div>
+                    </a>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'synthesis' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <div className="lg:col-span-2 bg-green-900/10 border border-green-700/30 p-3 sm:p-4 rounded-lg mb-2 sm:mb-4 flex items-start sm:items-center gap-3">
@@ -582,6 +749,11 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+            </div>
+
+            {/* Topic Heatmap - Source × Topic Matrix */}
+            <div className="lg:col-span-2">
+              <TopicHeatmap sourceMatrix={sourceMatrix} maxSources={8} />
             </div>
           </div>
         )}

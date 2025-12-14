@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import LandingPage from './components/LandingPage';
 
 // Lazy load the unified dashboard component for code splitting
@@ -20,15 +20,11 @@ function DashboardLoader() {
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<View>('landing');
-
-  // Load saved perspective from localStorage
-  useEffect(() => {
-    const savedPerspective = localStorage.getItem('selected_perspective') as View | null;
-    if (savedPerspective && (savedPerspective === 'right' || savedPerspective === 'left')) {
-      setCurrentView(savedPerspective);
-    }
-  }, []);
+  // Use lazy initializer to load saved perspective synchronously
+  const [currentView, setCurrentView] = useState<View>(() => {
+    const saved = localStorage.getItem('selected_perspective') as View | null;
+    return (saved === 'right' || saved === 'left') ? saved : 'landing';
+  });
 
   const handleSelectPerspective = (perspective: 'right' | 'left') => {
     setCurrentView(perspective);

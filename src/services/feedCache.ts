@@ -7,7 +7,7 @@ interface CacheEntry<T> {
 }
 
 export class FeedCache {
-  private cache: Map<string, CacheEntry<any>> = new Map();
+  private cache: Map<string, CacheEntry<unknown>> = new Map();
   private defaultTTL: number;
 
   constructor(defaultTTLMinutes: number = 15) {
