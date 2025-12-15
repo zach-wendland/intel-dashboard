@@ -25,16 +25,16 @@ import {
   Key,
   Shield,
   BarChart3,
-  PieChart
+  PieChart,
+  Loader2,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import {
   ALL_POLITICAL_SOURCES,
   POLITICAL_SOURCE_CATEGORIES,
   POLITICAL_LIVE_FEEDS,
   SOURCE_STATS,
-  SAMPLE_DONORS,
-  SAMPLE_LOBBYISTS,
-  SAMPLE_RECIPIENTS,
   type PoliticalDataSource,
   type SourceCategory,
   type DonorProfile,
@@ -42,6 +42,7 @@ import {
   type RecipientProfile
 } from '../config/politicalFinanceSources';
 import { feedService, type FeedItem } from '../services/feedService';
+import { usePoliticalData } from '../hooks/usePoliticalData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend } from 'recharts';
 
 interface PoliticalDonorTrackerProps {
@@ -80,6 +81,41 @@ export default function PoliticalDonorTracker({ onBack }: PoliticalDonorTrackerP
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
+
+  // Search inputs for API tabs
+  const [donorSearchInput, setDonorSearchInput] = useState('');
+  const [recipientSearchInput, setRecipientSearchInput] = useState('');
+  const [lobbyistSearchInput, setLobbyistSearchInput] = useState('');
+
+  // Political data hook
+  const {
+    // Profile data
+    donorProfile,
+    recipientProfile,
+    lobbyistProfile,
+    // Sample data fallbacks
+    sampleDonors,
+    sampleRecipients,
+    sampleLobbyists,
+    // Loading states
+    isLoadingDonor,
+    isLoadingRecipient,
+    isLoadingLobbyist,
+    // Error states
+    donorError,
+    recipientError,
+    lobbyistError,
+    // API status
+    apiStatus,
+    // Fallback indicators
+    donorUsingMock,
+    recipientUsingMock,
+    lobbyistUsingMock,
+    // Actions
+    searchDonor,
+    searchRecipient,
+    searchLobbyist,
+  } = usePoliticalData();
 
   // Memoized filtered sources
   const filteredSources = useMemo(() => {
@@ -656,33 +692,65 @@ export default function PoliticalDonorTracker({ onBack }: PoliticalDonorTrackerP
         {/* Donors Tab */}
         {activeTab === 'donors' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-white">Donor Profiles</h2>
                 <p className="text-sm text-slate-400">Track individual and organizational political contributions</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="relative">
+                {/* API Status Indicator */}
+                <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                  apiStatus.openfec.available ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                }`}>
+                  {apiStatus.openfec.available ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                  FEC API {apiStatus.openfec.remainingCalls !== undefined && `(${apiStatus.openfec.remainingCalls} calls left)`}
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); searchDonor(donorSearchInput); }} className="relative">
                   <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Search donors..."
-                    className="pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                    placeholder="Search donors by name..."
+                    value={donorSearchInput}
+                    onChange={(e) => setDonorSearchInput(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 w-64"
                   />
+                  {isLoadingDonor && <Loader2 className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 animate-spin" />}
+                </form>
+              </div>
+            </div>
+
+            {/* Status/Error Messages */}
+            {donorError && (
+              <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm text-yellow-400">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{donorError}</span>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <FileText className="h-4 w-4" />
-                <span>Sample data shown. Connect to FEC API and OpenSecrets for live donor data.</span>
+            {donorUsingMock && !donorError && (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <FileText className="h-4 w-4" />
+                  <span>Showing sample data. Search for a donor name to fetch live FEC contribution data.</span>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="grid md:grid-cols-2 gap-6">
-              {SAMPLE_DONORS.map(renderDonorCard)}
-            </div>
+            {/* Donor Profile Result */}
+            {donorProfile && !donorUsingMock && (
+              <div className="grid md:grid-cols-1 gap-6">
+                {renderDonorCard(donorProfile)}
+              </div>
+            )}
+
+            {/* Sample Data Display */}
+            {(donorUsingMock || !donorProfile) && (
+              <div className="grid md:grid-cols-2 gap-6">
+                {sampleDonors.map(renderDonorCard)}
+              </div>
+            )}
 
             {/* Data Source Attribution */}
             <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-4">
@@ -708,32 +776,65 @@ export default function PoliticalDonorTracker({ onBack }: PoliticalDonorTrackerP
         {/* Recipients Tab */}
         {activeTab === 'recipients' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-white">Recipient Tracking</h2>
                 <p className="text-sm text-slate-400">Candidates, PACs, Super PACs, and political organizations</p>
               </div>
               <div className="flex items-center gap-2">
-                <select className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
-                  <option value="all">All Types</option>
-                  <option value="candidate">Candidates</option>
-                  <option value="pac">PACs</option>
-                  <option value="super_pac">Super PACs</option>
-                  <option value="party">Party Committees</option>
-                </select>
+                {/* API Status Indicator */}
+                <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                  apiStatus.openfec.available ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                }`}>
+                  {apiStatus.openfec.available ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                  FEC API
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); searchRecipient(recipientSearchInput); }} className="relative">
+                  <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search candidates/committees..."
+                    value={recipientSearchInput}
+                    onChange={(e) => setRecipientSearchInput(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 w-64"
+                  />
+                  {isLoadingRecipient && <Loader2 className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 animate-spin" />}
+                </form>
               </div>
             </div>
 
-            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <FileText className="h-4 w-4" />
-                <span>Sample data shown. Connect to FEC Committee API for live recipient data.</span>
+            {/* Status/Error Messages */}
+            {recipientError && (
+              <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm text-yellow-400">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{recipientError}</span>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="grid md:grid-cols-2 gap-6">
-              {SAMPLE_RECIPIENTS.map(renderRecipientCard)}
-            </div>
+            {recipientUsingMock && !recipientError && (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <FileText className="h-4 w-4" />
+                  <span>Showing sample data. Search for a candidate or committee name to fetch live FEC data.</span>
+                </div>
+              </div>
+            )}
+
+            {/* Recipient Profile Result */}
+            {recipientProfile && !recipientUsingMock && (
+              <div className="grid md:grid-cols-1 gap-6">
+                {renderRecipientCard(recipientProfile)}
+              </div>
+            )}
+
+            {/* Sample Data Display */}
+            {(recipientUsingMock || !recipientProfile) && (
+              <div className="grid md:grid-cols-2 gap-6">
+                {sampleRecipients.map(renderRecipientCard)}
+              </div>
+            )}
 
             <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-4">
               <h4 className="text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide">Data Sources for Recipients</h4>
@@ -755,32 +856,65 @@ export default function PoliticalDonorTracker({ onBack }: PoliticalDonorTrackerP
         {/* Lobbyists Tab */}
         {activeTab === 'lobbyists' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-white">Lobbyist Disclosures</h2>
                 <p className="text-sm text-slate-400">Registered lobbyists, their clients, and lobbying activities</p>
               </div>
               <div className="flex items-center gap-2">
-                <select className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
-                  <option value="all">All Issues</option>
-                  <option value="healthcare">Healthcare</option>
-                  <option value="defense">Defense</option>
-                  <option value="energy">Energy</option>
-                  <option value="finance">Finance</option>
-                </select>
+                {/* API Status Indicator */}
+                <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                  apiStatus.senateLDA.available ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                }`}>
+                  {apiStatus.senateLDA.available ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                  Senate LDA
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); searchLobbyist(lobbyistSearchInput); }} className="relative">
+                  <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search lobbying firms..."
+                    value={lobbyistSearchInput}
+                    onChange={(e) => setLobbyistSearchInput(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 w-64"
+                  />
+                  {isLoadingLobbyist && <Loader2 className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 animate-spin" />}
+                </form>
               </div>
             </div>
 
-            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <FileText className="h-4 w-4" />
-                <span>Sample data shown. Connect to Senate LDA API for live lobbyist disclosures.</span>
+            {/* Status/Error Messages */}
+            {lobbyistError && (
+              <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm text-yellow-400">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{lobbyistError}</span>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="grid md:grid-cols-2 gap-6">
-              {SAMPLE_LOBBYISTS.map(renderLobbyistCard)}
-            </div>
+            {lobbyistUsingMock && !lobbyistError && (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <FileText className="h-4 w-4" />
+                  <span>Showing sample data. Search for a lobbying firm name to fetch live Senate LDA disclosures.</span>
+                </div>
+              </div>
+            )}
+
+            {/* Lobbyist Profile Result */}
+            {lobbyistProfile && !lobbyistUsingMock && (
+              <div className="grid md:grid-cols-1 gap-6">
+                {renderLobbyistCard(lobbyistProfile)}
+              </div>
+            )}
+
+            {/* Sample Data Display */}
+            {(lobbyistUsingMock || !lobbyistProfile) && (
+              <div className="grid md:grid-cols-2 gap-6">
+                {sampleLobbyists.map(renderLobbyistCard)}
+              </div>
+            )}
 
             <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-4">
               <h4 className="text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide">Data Sources for Lobbyist Data</h4>

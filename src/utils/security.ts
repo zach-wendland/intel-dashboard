@@ -116,7 +116,16 @@ export const CSP_DIRECTIVES = {
   scriptSrc: ["'self'", "'unsafe-inline'"], // Note: In production, remove unsafe-inline
   styleSrc: ["'self'", "'unsafe-inline'"],
   imgSrc: ["'self'", "data:", "https:"],
-  connectSrc: ["'self'", "https://api.rss2json.com"],
+  connectSrc: [
+    "'self'",
+    "https://api.rss2json.com",
+    "https://api.allorigins.win",
+    "https://corsproxy.io",
+    // Political Finance APIs
+    "https://api.open.fec.gov",
+    "https://lda.senate.gov",
+    "https://projects.propublica.org",
+  ],
   fontSrc: ["'self'"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],

@@ -94,6 +94,44 @@ export const POLITICAL_SOURCE_CATEGORIES: Record<SourceCategory, {
 };
 
 // ============================================================================
+// API CONFIGURATION
+// ============================================================================
+export const API_CONFIG = {
+  openfec: {
+    baseUrl: 'https://api.open.fec.gov',
+    version: 'v1',
+    perPage: 20,
+    rateLimit: { maxCalls: 1000, windowMs: 60 * 60 * 1000 }, // 1000/hour
+    endpoints: {
+      candidates: '/v1/candidates/search/',
+      committees: '/v1/committees/',
+      contributions: '/v1/schedules/schedule_a/',
+      disbursements: '/v1/schedules/schedule_b/',
+      independentExpenditures: '/v1/schedules/schedule_e/',
+    },
+  },
+  senateLDA: {
+    baseUrl: 'https://lda.senate.gov/api',
+    version: 'v1',
+    perPage: 25,
+    endpoints: {
+      filings: '/v1/filings/',
+      registrants: '/v1/registrants/',
+      clients: '/v1/clients/',
+    },
+  },
+  propublica: {
+    baseUrl: 'https://projects.propublica.org/nonprofits/api',
+    version: 'v2',
+    perPage: 25,
+    endpoints: {
+      search: '/v2/search.json',
+      organization: '/v2/organizations/',
+    },
+  },
+};
+
+// ============================================================================
 // FEDERAL ELECTION COMMISSION (FEC) SOURCES
 // ============================================================================
 export const FEC_SOURCES: PoliticalDataSource[] = [
