@@ -16,7 +16,19 @@
       "Bash(npm install:*)",
       "Bash(node test-dashboard.js:*)",
       "Bash(npx puppeteer:*)",
-      "Bash(node detailed-test.js:*)"
+      "Bash(node detailed-test.js:*)",
+      "Bash(git rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(npx vercel --version)",
+      "Bash(npx vercel:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_close",
+      "Bash(npm run dev:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

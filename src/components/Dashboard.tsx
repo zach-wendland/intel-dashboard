@@ -3,17 +3,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Activity,
   Globe,
-  Radio,
-  BookOpen,
-  Shield,
-  ShieldAlert,
-  Server,
-  Database,
   AlertTriangle,
   Cpu,
-  Users,
   Zap,
-  ExternalLink,
   RefreshCw,
   Wifi,
   Play,
@@ -21,7 +13,8 @@ import {
   X,
   Bookmark,
   History,
-  Trash2
+  Trash2,
+  Tv
 } from 'lucide-react';
 import {
   LineChart,
@@ -49,25 +42,11 @@ import { useReadingHistory } from '../hooks/useReadingHistory';
 import type { MediaSettings } from '../types';
 import { MediaView } from './views/MediaView';
 import { FeedItemCard } from './ui/FeedItem';
+import { LiveStreamsView } from './views/LiveStreamsView';
 
 // Import America First configuration
-import {
-  RIGHT_LIVE_FEEDS as AMERICA_FIRST_LIVE_FEEDS,
-  RIGHT_SOURCE_CATEGORIES as AMERICA_FIRST_SOURCE_CATEGORIES,
-  RIGHT_SOURCES as AMERICA_FIRST_SOURCES,
-} from '../config/americaFirstSources';
+import { RIGHT_LIVE_FEEDS as AMERICA_FIRST_LIVE_FEEDS } from '../config/americaFirstSources';
 
-// Icon mapping for dynamic icon rendering
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  BookOpen,
-  Radio,
-  Users,
-  Globe,
-  Shield,
-  ShieldAlert,
-  Server,
-  Zap
-};
 
 // America First configuration
 const CONFIG = {
@@ -78,12 +57,9 @@ const CONFIG = {
   accentBorder: 'border-red-500/30',
   selectionColor: 'selection:bg-red-900',
   liveFeeds: AMERICA_FIRST_LIVE_FEEDS,
-  sourceCategories: AMERICA_FIRST_SOURCE_CATEGORIES,
-  sources: AMERICA_FIRST_SOURCES,
   sidebarTitle: 'Priority Watch List',
   sidebarItems: ['Big Tech Censorship', 'Border Invasion', 'Deep State Exposure', 'Globalist Agenda', 'Foreign Aid / Israel'],
-  trendingTags: ['America First', 'MAGA', 'Groyper', 'Deep State', 'Border Crisis', 'Globalists', 'Big Tech', 'AIPAC'],
-  tierHighlight: 'bg-red-900/20 text-red-400 border-red-900/30'
+  trendingTags: ['America First', 'MAGA', 'Groyper', 'Deep State', 'Border Crisis', 'Globalists', 'Big Tech', 'AIPAC']
 };
 
 // Helper Functions
@@ -165,9 +141,8 @@ const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
 };
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'grid' | 'feed' | 'synthesis' | 'media' | 'bookmarks' | 'history'>('feed');
+  const [activeTab, setActiveTab] = useState<'grid' | 'feed' | 'synthesis' | 'media' | 'bookmarks' | 'history'>('grid');
   const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [filter, setFilter] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [feedStatus, setFeedStatus] = useState<Record<string | number, FeedStatus>>({});
@@ -210,10 +185,6 @@ export default function Dashboard() {
     fetchLiveFeed();
   }, [fetchLiveFeed]);
 
-  const filteredSources = filter === 'ALL'
-    ? CONFIG.sources
-    : CONFIG.sources.filter(s => s.category === filter);
-
   const metrics = calculateFeedMetrics(feedStatus, CONFIG.liveFeeds.length);
   const colors = getStatusColors(metrics);
 
@@ -246,7 +217,7 @@ export default function Dashboard() {
           {/* Desktop navigation */}
           <nav className="hidden md:flex gap-1 bg-slate-800/50 p-1 rounded-lg">
             <button onClick={() => setActiveTab('grid')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'grid' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
-              <Database className="h-4 w-4 inline mr-2" />Patriot Grid
+              <Tv className="h-4 w-4 inline mr-2" />Live Streams
             </button>
             <button onClick={() => setActiveTab('feed')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'feed' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <Zap className="h-4 w-4 inline mr-2" />
@@ -312,8 +283,8 @@ export default function Dashboard() {
                 onClick={() => { setActiveTab('grid'); setMobileMenuOpen(false); }}
                 className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
               >
-                <Database className="h-5 w-5" />
-                Patriot Grid
+                <Tv className="h-5 w-5" />
+                Live Streams
               </button>
               <button
                 onClick={() => { setActiveTab('feed'); setMobileMenuOpen(false); }}
@@ -357,51 +328,7 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'grid' && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap gap-2 pb-4 border-b border-slate-800">
-              <button onClick={() => setFilter('ALL')} className={`px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider border ${filter === 'ALL' ? 'bg-slate-800 border-slate-600 text-white' : 'bg-transparent border-slate-800 text-slate-500 hover:border-slate-600'}`}>All Sources</button>
-              {Object.entries(CONFIG.sourceCategories).map(([key, catConfig]) => {
-                const IconComponent = ICON_MAP[catConfig.icon];
-                return (
-                  <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider border flex items-center gap-2 ${filter === key ? 'bg-slate-800 border-slate-600 text-white' : 'bg-transparent border-slate-800 text-slate-500 hover:border-slate-600'}`}>
-                    {IconComponent && <IconComponent className={`h-3 w-3 ${catConfig.color}`} />}
-                    {catConfig.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredSources.map((source) => {
-                const categoryConfig = CONFIG.sourceCategories[source.category];
-                const CategoryIcon = categoryConfig ? ICON_MAP[categoryConfig.icon] : null;
-
-                return (
-                  <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="group bg-slate-900 border border-slate-800 rounded-lg p-4 hover:border-slate-500 transition-all hover:shadow-lg hover:shadow-slate-900/50 hover:-translate-y-1 block relative">
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ExternalLink className="h-4 w-4 text-slate-400" />
-                    </div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className={`p-2 rounded bg-slate-950 border border-slate-800 ${categoryConfig?.color || 'text-slate-400'}`}>
-                        {CategoryIcon && <CategoryIcon className="h-5 w-5" />}
-                      </div>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${source.tier === 'High' ? CONFIG.tierHighlight : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-                        TIER: {source.tier?.toUpperCase()}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-slate-200 group-hover:text-white truncate pr-6">{source.name}</h3>
-                    <p className="text-xs text-slate-500 mt-1 mb-3">{source.focus}</p>
-                    <div className="flex items-center justify-between text-xs text-slate-600 font-mono mt-auto pt-3 border-t border-slate-800/50">
-                      <span>STATUS: ONLINE</span>
-                      <Activity className="h-3 w-3 text-green-500" />
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {activeTab === 'grid' && <LiveStreamsView />}
 
         {activeTab === 'feed' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
