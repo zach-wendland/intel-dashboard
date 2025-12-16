@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Intel Dashboard is a React/TypeScript news aggregation dashboard that displays live RSS feeds from various political news sources. It features a "Global Intelligence Grid" UI with real-time feed status monitoring, category filtering, search, bookmarks, reading history, and data visualization.
+America First Intelligence Grid - A React/TypeScript news aggregation and live streaming dashboard. Features real-time RSS feeds from patriot news sources, embedded video streams from 30+ content creators across Kick, Rumble, YouTube, and Twitch, bookmarks, reading history, and analytics.
 
 ## Commands
 
@@ -23,22 +23,28 @@ npm run preview      # Preview production build locally
 - **Styling**: Tailwind CSS
 - **Charts**: Recharts
 - **Icons**: Lucide React
+- **Streaming**: Platform embed APIs (Kick, Rumble, YouTube, Twitch)
 
-### Perspective System
-The app routes users through a perspective selection (`LandingPage.tsx` → `Dashboard.tsx`):
-- **Views**: `'landing' | 'right' | 'left' | 'political-tracker'`
-- Sources loaded from `rightWingSources.ts` or `leftWingSources.ts` based on selection
-- Perspective persisted to localStorage (`selected_perspective`)
-- Dashboard component receives perspective as prop and loads corresponding sources
+### App Structure
+The app loads directly into `Dashboard.tsx` via lazy loading in `App.tsx`. No landing page or perspective selection - single "America First" configuration.
 
 ### Dashboard Tabs
-1. **Intel Grid** - Source directory with category filtering
-2. **Live Wire** - Real-time feed with search, bookmarks, and reading history
-3. **Synthesis** - Analytics charts (volume over time, topic distribution)
-4. **Media** - Rumble and Twitter widget embeds with settings
+1. **Live Streams** (`grid` tab) - Video streams from content creators with platform/category filtering
+2. **Patriot Wire** (`feed` tab) - Real-time RSS feed with search, bookmarks, reading history
+3. **Synthesis** (`synthesis` tab) - Analytics charts (volume over time, topic distribution)
+4. **Media** (`media` tab) - Rumble and Twitter widget embeds
+5. **Bookmarks** (`bookmarks` tab) - Saved articles
+6. **History** (`history` tab) - Reading history
+
+### Live Streaming System
+Streamer configuration in `src/config/streamers.ts`:
+- **Platforms**: Kick, Rumble, YouTube, Twitch, Cozy.tv
+- **Categories**: GROYPER, MAGA_MEDIA, PODCASTERS, MANOSPHERE, COMMENTARY, GAMING
+- `PLATFORM_CONFIG` provides embed URL generators per platform
+- `LiveStreamsView.tsx` handles filtering and video embedding
 
 ### RSS Feed Integration (Multi-Proxy System)
-`feedService.ts` is a singleton that fetches feeds using round-robin proxy distribution with automatic fallback:
+`feedService.ts` fetches feeds via round-robin proxy distribution with automatic fallback:
 
 **Proxies (in fallback order):**
 1. `rss2json` - `api.rss2json.com/v1/api.json?rss_url=...` (JSON response)
@@ -46,25 +52,40 @@ The app routes users through a perspective selection (`LandingPage.tsx` → `Das
 3. `corsproxy` - `corsproxy.io/?...` (raw XML, parsed client-side)
 
 **Key behaviors:**
-- Round-robin distribution with failure awareness (skips proxies with 3+ recent failures)
+- Round-robin with failure awareness (skips proxies with 3+ recent failures)
 - Per-feed caching with 15-minute TTL
 - Request deduplication via in-flight promise cache
 - AbortController timeout (10s)
-- URL/date validation to prevent XSS and sort crashes
+- URL/date validation
 
 ### Data Flow
 1. `feedService.fetchFeeds(sources)` called on mount and refresh
-2. Parallel fetch to all feeds with request deduplication
-3. Automatic fallback to next proxy on failure
-4. Response validation: HTTP status, RSS status, date parsing, URL validation
-5. Items sorted by `rawDate` (newest first)
-6. `useTrending` computes analytics from feed data
-7. `useSearch` filters feed based on user criteria
+2. Parallel fetch with request deduplication
+3. Automatic proxy fallback on failure
+4. `useTrending` computes analytics
+5. `useSearch` filters feed based on user criteria
 
 ## Configuration
 
-### Adding New RSS Feeds
-Add entries to perspective config files (`rightWingSources.ts` or `leftWingSources.ts`):
+### Adding Streamers
+Add entries to `src/config/streamers.ts` in the appropriate platform array:
+```typescript
+{
+  id: 'platform-username',
+  name: 'Display Name',
+  platform: 'kick' | 'rumble' | 'youtube' | 'twitch' | 'cozy',
+  username: 'channel_username',
+  channelUrl: 'https://platform.com/username',
+  description: 'Brief description',
+  category: 'GROYPER' | 'MAGA_MEDIA' | 'PODCASTERS' | 'MANOSPHERE' | 'COMMENTARY' | 'GAMING',
+  followers?: '1.5K',
+  schedule?: 'M-F 8pm CST',
+  featured?: true
+}
+```
+
+### Adding RSS Feeds
+Add entries to `src/config/americaFirstSources.ts`:
 ```typescript
 {
   id: 'unique-id',
@@ -75,26 +96,25 @@ Add entries to perspective config files (`rightWingSources.ts` or `leftWingSourc
 }
 ```
 
-### Source Categories
-Categories defined in `SOURCE_CATEGORIES` (in `categories.ts`) with icons, labels, and colors. Used for filtering in Intel Grid view.
+## Key Files
+
+- `src/config/streamers.ts` - All streamer data (30+ creators across 4 platforms)
+- `src/config/americaFirstSources.ts` - RSS feed sources
+- `src/components/views/LiveStreamsView.tsx` - Video streaming UI
+- `src/services/feedService.ts` - RSS proxy system with fallback
+- `src/hooks/useBookmarks.ts`, `useReadingHistory.ts` - User data persistence
 
 ## Known Considerations
 
-### External API Dependencies
-Free-tier CORS proxies may have rate limits. The multi-proxy fallback system (`feedService.ts`) mitigates this by distributing load across providers. The 15-minute cache TTL further reduces API calls.
+### External APIs
+- Free-tier CORS proxies may have rate limits; multi-proxy fallback mitigates this
+- Platform embeds rely on external iframe APIs
 
-### Caching Strategy
-- **Feed cache**: In-memory via `feedCache.ts` with 15-minute TTL
-- **User data**: localStorage (bookmarks, reading history, filter presets, perspective)
-
-### Error Handling
-Feed errors tracked per-source and displayed in collapsible alert. Health indicator: green (all ok), orange (partial), red (all failed).
+### Caching
+- **Feed cache**: In-memory with 15-minute TTL
+- **User data**: localStorage (bookmarks, reading history, media settings)
 
 ### Mobile Optimization
 - Mobile-first responsive design (sm:/md:/lg: breakpoints)
 - 44px minimum tap targets
 - Touch feedback states (active:scale-95)
-- Responsive chart heights (h-48 sm:h-64)
-
-### Lint Considerations
-Some lint warnings exist for setState in effects (localStorage sync patterns). These are functionally correct but flagged by React 19 lint rules.
