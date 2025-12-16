@@ -242,6 +242,55 @@ export const RUMBLE_STREAMERS: Streamer[] = [
     channelUrl: 'https://rumble.com/c/LaurenSouthern10',
     description: 'Canadian conservative documentarian',
     category: 'COMMENTARY'
+  },
+  {
+    id: 'rumble-fuentes',
+    name: 'Nick Fuentes',
+    platform: 'rumble',
+    username: 'nickjfuentes',
+    channelUrl: 'https://rumble.com/c/nickjfuentes',
+    description: 'America First Show - Groyper movement leader',
+    category: 'GROYPER',
+    schedule: 'M-F 8pm CST',
+    featured: true
+  },
+  {
+    id: 'rumble-beardson',
+    name: 'Beardson Beardly',
+    platform: 'rumble',
+    username: 'Beardson',
+    channelUrl: 'https://rumble.com/c/Beardson',
+    description: 'The Weekly Sweat - Catholic veteran comedy',
+    category: 'GROYPER',
+    followers: '1.1K'
+  },
+  {
+    id: 'rumble-baked',
+    name: 'Baked Alaska',
+    platform: 'rumble',
+    username: 'bakedalaska',
+    channelUrl: 'https://rumble.com/bakedalaska',
+    description: 'IRL streams - pardoned Jan 2025',
+    category: 'GROYPER'
+  },
+  {
+    id: 'rumble-zherka',
+    name: 'Jon Zherka',
+    platform: 'rumble',
+    username: 'JonZherk',
+    channelUrl: 'https://rumble.com/c/JonZherk',
+    description: 'Debate content, manosphere commentary',
+    category: 'MANOSPHERE'
+  },
+  {
+    id: 'rumble-adin',
+    name: 'Adin Ross',
+    platform: 'rumble',
+    username: 'OfficialAdinRossLive',
+    channelUrl: 'https://rumble.com/c/OfficialAdinRossLive',
+    description: 'Gaming, political interviews - $100M Rumble deal 2025',
+    category: 'GAMING',
+    featured: true
   }
 ];
 
