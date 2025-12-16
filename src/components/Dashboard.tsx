@@ -1,4 +1,4 @@
-// Unified Dashboard Component - Consolidates Left and Right Wing Dashboards
+// America First Intelligence Grid Dashboard
 import { useState, useEffect, useCallback } from 'react';
 import {
   Activity,
@@ -50,19 +50,12 @@ import type { MediaSettings } from '../types';
 import { MediaView } from './views/MediaView';
 import { FeedItemCard } from './ui/FeedItem';
 
-// Import configurations from both perspectives
+// Import America First configuration
 import {
-  RIGHT_LIVE_FEEDS,
-  RIGHT_SOURCE_CATEGORIES,
-  RIGHT_SOURCES,
-} from '../config/rightWingSources';
-import {
-  LEFT_LIVE_FEEDS,
-  LEFT_SOURCE_CATEGORIES,
-  LEFT_SOURCES,
-} from '../config/leftWingSources';
-
-export type Perspective = 'right' | 'left';
+  RIGHT_LIVE_FEEDS as AMERICA_FIRST_LIVE_FEEDS,
+  RIGHT_SOURCE_CATEGORIES as AMERICA_FIRST_SOURCE_CATEGORIES,
+  RIGHT_SOURCES as AMERICA_FIRST_SOURCES,
+} from '../config/americaFirstSources';
 
 // Icon mapping for dynamic icon rendering
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -76,57 +69,21 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Zap
 };
 
-// Perspective-specific configuration
-interface PerspectiveConfig {
-  title: string;
-  subtitle: string;
-  accentColor: string;
-  accentBg: string;
-  accentBorder: string;
-  selectionColor: string;
-  switchLabel: string;
-  liveFeeds: SourceItem[];
-  sourceCategories: Record<string, { label: string; icon: string; color: string }>;
-  sources: SourceItem[];
-  sidebarTitle: string;
-  sidebarItems: string[];
-  trendingTags: string[];
-  tierHighlight: string;
-}
-
-const PERSPECTIVE_CONFIG: Record<Perspective, PerspectiveConfig> = {
-  right: {
-    title: 'RIGHT-WING INTELLIGENCE GRID',
-    subtitle: 'CONSERVATIVE',
-    accentColor: 'text-red-500',
-    accentBg: 'bg-red-600/20',
-    accentBorder: 'border-red-500/30',
-    selectionColor: 'selection:bg-red-900',
-    switchLabel: 'Switch to Left-Wing',
-    liveFeeds: RIGHT_LIVE_FEEDS,
-    sourceCategories: RIGHT_SOURCE_CATEGORIES,
-    sources: RIGHT_SOURCES,
-    sidebarTitle: 'Threat Vectors (Simulated)',
-    sidebarItems: ['Censorship/De-platforming', 'Foreign Aid Bills', 'Cultural Subversion', 'Surveillance State'],
-    trendingTags: ['AIPAC', 'ADL', 'WEF', 'Neocons', 'Open Borders', 'USS Liberty', 'Section 230'],
-    tierHighlight: 'bg-red-900/20 text-red-400 border-red-900/30'
-  },
-  left: {
-    title: 'LEFT-WING INTELLIGENCE GRID',
-    subtitle: 'PROGRESSIVE',
-    accentColor: 'text-blue-500',
-    accentBg: 'bg-blue-600/20',
-    accentBorder: 'border-blue-500/30',
-    selectionColor: 'selection:bg-blue-900',
-    switchLabel: 'Switch to Right-Wing',
-    liveFeeds: LEFT_LIVE_FEEDS,
-    sourceCategories: LEFT_SOURCE_CATEGORIES,
-    sources: LEFT_SOURCES,
-    sidebarTitle: 'Priority Issues (Simulated)',
-    sidebarItems: ['Climate Crisis', 'Healthcare Access', 'Income Inequality', 'Voting Rights'],
-    trendingTags: ['Climate Justice', 'Labor Rights', 'Healthcare For All', 'Voting Rights', 'Wealth Tax', 'Green New Deal', 'Student Debt'],
-    tierHighlight: 'bg-blue-900/20 text-blue-400 border-blue-900/30'
-  }
+// America First configuration
+const CONFIG = {
+  title: 'AMERICA FIRST INTELLIGENCE GRID',
+  subtitle: 'PATRIOT NETWORK',
+  accentColor: 'text-red-500',
+  accentBg: 'bg-red-600/20',
+  accentBorder: 'border-red-500/30',
+  selectionColor: 'selection:bg-red-900',
+  liveFeeds: AMERICA_FIRST_LIVE_FEEDS,
+  sourceCategories: AMERICA_FIRST_SOURCE_CATEGORIES,
+  sources: AMERICA_FIRST_SOURCES,
+  sidebarTitle: 'Priority Watch List',
+  sidebarItems: ['Big Tech Censorship', 'Border Invasion', 'Deep State Exposure', 'Globalist Agenda', 'Foreign Aid / Israel'],
+  trendingTags: ['America First', 'MAGA', 'Groyper', 'Deep State', 'Border Crisis', 'Globalists', 'Big Tech', 'AIPAC'],
+  tierHighlight: 'bg-red-900/20 text-red-400 border-red-900/30'
 };
 
 // Helper Functions
@@ -197,12 +154,6 @@ function FeedErrorAlert({
   );
 }
 
-// Props interface
-interface DashboardProps {
-  perspective: Perspective;
-  onSwitchPerspective: () => void;
-}
-
 // Default media settings
 const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   rumbleChannels: [
@@ -213,9 +164,7 @@ const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   ],
 };
 
-export default function Dashboard({ perspective, onSwitchPerspective }: DashboardProps) {
-  const config = PERSPECTIVE_CONFIG[perspective];
-
+export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'grid' | 'feed' | 'synthesis' | 'media' | 'bookmarks' | 'history'>('feed');
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [filter, setFilter] = useState<string>('ALL');
@@ -230,9 +179,9 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
   const { filters, updateFilter, resetFilters, filteredFeed, resultCount, presets, savePreset, loadPreset, deletePreset } = useSearch(feed);
   const { trending, chartData: trendingChartData, narrativeData: trendingNarrativeData, sourceMatrix } = useTrending(feed);
   const { bookmarks, isBookmarked, addBookmark, removeBookmark, clearAllBookmarks } = useBookmarks();
-  const { history, hasRead, addToHistory, clearHistory, getHistoryByPerspective } = useReadingHistory();
+  const { history, hasRead, addToHistory, clearHistory } = useReadingHistory();
 
-  // Use trending data for charts (replaces inline computation)
+  // Use trending data for charts
   const chartData = trendingChartData;
   const narrativeData = trendingNarrativeData;
 
@@ -244,51 +193,50 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
       // Clear cache to force fresh fetch
       feedService.clearCache();
 
-      const result = await feedService.fetchFeeds(config.liveFeeds);
+      const result = await feedService.fetchFeeds(CONFIG.liveFeeds);
 
       setFeed(result.items);
       setFeedStatus(result.status);
       setErrorMessages(result.errors);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
-      // Note: chartData and narrativeData are now computed by useTrending hook
     } catch (e) {
       console.error("Global fetch error", e);
     } finally {
       setIsRefreshing(false);
     }
-  }, [config.liveFeeds]);
+  }, []);
 
   useEffect(() => {
     fetchLiveFeed();
-  }, [fetchLiveFeed]); // Re-fetch when perspective changes (via config.liveFeeds)
+  }, [fetchLiveFeed]);
 
   const filteredSources = filter === 'ALL'
-    ? config.sources
-    : config.sources.filter(s => s.category === filter);
+    ? CONFIG.sources
+    : CONFIG.sources.filter(s => s.category === filter);
 
-  const metrics = calculateFeedMetrics(feedStatus, config.liveFeeds.length);
+  const metrics = calculateFeedMetrics(feedStatus, CONFIG.liveFeeds.length);
   const colors = getStatusColors(metrics);
 
   return (
-    <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans ${config.selectionColor} selection:text-white`}>
+    <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans ${CONFIG.selectionColor} selection:text-white`}>
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           {/* Logo and title */}
           <div className="flex items-center gap-3">
-            <div className={`${config.accentBg} p-2 rounded-lg border ${config.accentBorder}`}>
-              <Activity className={`h-5 w-5 sm:h-6 sm:w-6 ${config.accentColor}`} />
+            <div className={`${CONFIG.accentBg} p-2 rounded-lg border ${CONFIG.accentBorder}`}>
+              <Activity className={`h-5 w-5 sm:h-6 sm:w-6 ${CONFIG.accentColor}`} />
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">{config.title}</h1>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">{CONFIG.title}</h1>
               <p className="text-xs text-slate-400 font-mono flex items-center gap-2">
-                PERSPECTIVE: {config.subtitle}
+                {CONFIG.subtitle}
                 <span className="text-slate-600">|</span>
                 STATUS: {isRefreshing ? <span className="text-yellow-400 animate-pulse">SYNCING...</span> : <span className="text-green-400">ONLINE</span>}
               </p>
             </div>
             {/* Compact mobile title */}
             <div className="sm:hidden">
-              <h1 className="text-sm font-bold tracking-tight text-white">{config.subtitle}</h1>
+              <h1 className="text-sm font-bold tracking-tight text-white">AMERICA FIRST</h1>
               <p className="text-[10px] text-slate-400 font-mono">
                 {isRefreshing ? <span className="text-yellow-400">SYNCING</span> : <span className="text-green-400">ONLINE</span>}
               </p>
@@ -298,11 +246,11 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
           {/* Desktop navigation */}
           <nav className="hidden md:flex gap-1 bg-slate-800/50 p-1 rounded-lg">
             <button onClick={() => setActiveTab('grid')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'grid' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
-              <Database className="h-4 w-4 inline mr-2" />Intel Grid
+              <Database className="h-4 w-4 inline mr-2" />Patriot Grid
             </button>
             <button onClick={() => setActiveTab('feed')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'feed' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
-              {perspective === 'right' ? <Zap className="h-4 w-4 inline mr-2" /> : <Users className="h-4 w-4 inline mr-2" />}
-              Live Wire
+              <Zap className="h-4 w-4 inline mr-2" />
+              Patriot Wire
             </button>
             <button onClick={() => setActiveTab('bookmarks')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'bookmarks' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <Bookmark className="h-4 w-4 inline mr-2" />Bookmarks
@@ -321,15 +269,9 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
 
           {/* Desktop action buttons */}
           <div className="hidden md:flex items-center gap-4">
-            <button
-              onClick={onSwitchPerspective}
-              className={`text-xs px-3 py-1.5 ${perspective === 'right' ? 'bg-blue-900/30 border-blue-700/50 text-blue-300 hover:bg-blue-900/50' : 'bg-red-900/30 border-red-700/50 text-red-300 hover:bg-red-900/50'} border rounded transition-all`}
-            >
-              {config.switchLabel}
-            </button>
             <button onClick={fetchLiveFeed} disabled={isRefreshing} className={`flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs text-slate-300 transition-all ${isRefreshing ? 'opacity-70 cursor-wait' : ''}`}>
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} />
-              {isRefreshing ? 'SYNCING...' : 'REFRESH INTEL'}
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-red-400' : ''}`} />
+              {isRefreshing ? 'SYNCING...' : 'SYNC PATRIOT FEEDS'}
             </button>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded text-xs border" style={{ backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }}>
               <span className="relative flex h-2 w-2">
@@ -343,7 +285,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
           {/* Mobile action buttons */}
           <div className="flex md:hidden items-center gap-2">
             <button onClick={fetchLiveFeed} disabled={isRefreshing} className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center bg-slate-800 border border-slate-700 rounded transition-all active:scale-95 ${isRefreshing ? 'opacity-70' : ''}`}>
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-400' : 'text-slate-300'}`} />
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-red-400' : 'text-slate-300'}`} />
             </button>
             <div className="flex items-center gap-1.5 px-2 py-1.5 rounded text-xs border" style={{ backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }}>
               <span className="relative flex h-2 w-2">
@@ -371,14 +313,14 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                 className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
               >
                 <Database className="h-5 w-5" />
-                Intel Grid
+                Patriot Grid
               </button>
               <button
                 onClick={() => { setActiveTab('feed'); setMobileMenuOpen(false); }}
                 className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${activeTab === 'feed' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
               >
-                {perspective === 'right' ? <Zap className="h-5 w-5" /> : <Users className="h-5 w-5" />}
-                Live Wire
+                <Zap className="h-5 w-5" />
+                Patriot Wire
               </button>
               <button
                 onClick={() => { setActiveTab('bookmarks'); setMobileMenuOpen(false); }}
@@ -409,14 +351,6 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                 <Play className="h-5 w-5" />
                 Media
               </button>
-              <div className="border-t border-slate-800 my-2"></div>
-              <button
-                onClick={() => { onSwitchPerspective(); setMobileMenuOpen(false); }}
-                className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${perspective === 'right' ? 'bg-blue-900/30 text-blue-300' : 'bg-red-900/30 text-red-300'}`}
-              >
-                <Globe className="h-5 w-5" />
-                {config.switchLabel}
-              </button>
             </nav>
           </div>
         )}
@@ -427,7 +361,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
           <div className="space-y-6">
             <div className="flex flex-wrap gap-2 pb-4 border-b border-slate-800">
               <button onClick={() => setFilter('ALL')} className={`px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider border ${filter === 'ALL' ? 'bg-slate-800 border-slate-600 text-white' : 'bg-transparent border-slate-800 text-slate-500 hover:border-slate-600'}`}>All Sources</button>
-              {Object.entries(config.sourceCategories).map(([key, catConfig]) => {
+              {Object.entries(CONFIG.sourceCategories).map(([key, catConfig]) => {
                 const IconComponent = ICON_MAP[catConfig.icon];
                 return (
                   <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider border flex items-center gap-2 ${filter === key ? 'bg-slate-800 border-slate-600 text-white' : 'bg-transparent border-slate-800 text-slate-500 hover:border-slate-600'}`}>
@@ -440,7 +374,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredSources.map((source) => {
-                const categoryConfig = config.sourceCategories[source.category];
+                const categoryConfig = CONFIG.sourceCategories[source.category];
                 const CategoryIcon = categoryConfig ? ICON_MAP[categoryConfig.icon] : null;
 
                 return (
@@ -452,7 +386,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                       <div className={`p-2 rounded bg-slate-950 border border-slate-800 ${categoryConfig?.color || 'text-slate-400'}`}>
                         {CategoryIcon && <CategoryIcon className="h-5 w-5" />}
                       </div>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${source.tier === 'High' ? config.tierHighlight : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${source.tier === 'High' ? CONFIG.tierHighlight : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
                         TIER: {source.tier?.toUpperCase()}
                       </span>
                     </div>
@@ -475,9 +409,9 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
             <div className="lg:col-span-2 space-y-3 sm:space-y-4 order-2 lg:order-1">
               <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
                 <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-                  <Wifi className={`h-4 w-4 sm:h-5 sm:w-5 ${config.accentColor} animate-pulse`} />
-                  <span className="hidden sm:inline">Live Wire Intercepts</span>
-                  <span className="sm:hidden">Live Wire</span>
+                  <Wifi className={`h-4 w-4 sm:h-5 sm:w-5 ${CONFIG.accentColor} animate-pulse`} />
+                  <span className="hidden sm:inline">Patriot Wire Intercepts</span>
+                  <span className="sm:hidden">Patriot Wire</span>
                   {lastUpdated && <span className="text-[10px] sm:text-xs font-mono font-normal text-slate-500 ml-1 sm:ml-2">(UPDATED: {lastUpdated})</span>}
                 </h2>
                 <span className="text-[10px] sm:text-xs text-slate-500 font-mono">
@@ -506,7 +440,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               />
 
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[300px] sm:min-h-[400px]">
-                <FeedErrorAlert errorMessages={errorMessages} liveFeeds={config.liveFeeds} />
+                <FeedErrorAlert errorMessages={errorMessages} liveFeeds={CONFIG.liveFeeds} />
 
                 {/* Loading skeleton */}
                 {isRefreshing && feed.length === 0 && (
@@ -536,7 +470,6 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                     item={item}
                     isBookmarked={isBookmarked(item.id)}
                     hasRead={hasRead(item.id)}
-                    perspective={perspective}
                     onBookmark={(id: string) => addBookmark(id, item.title, item.url, item.source)}
                     onRemoveBookmark={removeBookmark}
                     onRead={addToHistory}
@@ -559,15 +492,13 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4">
                 <h3 className="text-xs sm:text-sm font-semibold text-slate-300 mb-3 sm:mb-4 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                  {config.sidebarTitle}
+                  {CONFIG.sidebarTitle}
                 </h3>
                 <div className="space-y-2 sm:space-y-3">
-                  {config.sidebarItems.map((item, i) => (
+                  {CONFIG.sidebarItems.map((item, i) => (
                     <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
                       <span className="text-slate-400">{item}</span>
-                      <span className={`${perspective === 'right' ? 'text-red-400' : 'text-blue-400'} font-mono text-[10px] sm:text-xs`}>
-                        {perspective === 'right' ? 'CRITICAL' : 'HIGH'}
-                      </span>
+                      <span className="text-red-400 font-mono text-[10px] sm:text-xs">CRITICAL</span>
                     </div>
                   ))}
                 </div>
@@ -589,7 +520,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-                <Bookmark className={`h-4 w-4 sm:h-5 sm:w-5 ${config.accentColor}`} />
+                <Bookmark className={`h-4 w-4 sm:h-5 sm:w-5 ${CONFIG.accentColor}`} />
                 <span>Saved Bookmarks</span>
                 <span className="text-xs font-mono font-normal text-slate-500 ml-2">({bookmarks.length} items)</span>
               </h2>
@@ -628,7 +559,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                           {new Date(bookmark.savedAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <h3 className="text-sm font-medium text-slate-200 group-hover:text-blue-400 transition-colors mb-2 pr-4 sm:pr-6 line-clamp-2">
+                      <h3 className="text-sm font-medium text-slate-200 group-hover:text-red-400 transition-colors mb-2 pr-4 sm:pr-6 line-clamp-2">
                         {bookmark.articleTitle}
                       </h3>
                       <div className="flex items-center gap-2">
@@ -656,9 +587,9 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-                <History className={`h-4 w-4 sm:h-5 sm:w-5 ${config.accentColor}`} />
+                <History className={`h-4 w-4 sm:h-5 sm:w-5 ${CONFIG.accentColor}`} />
                 <span>Reading History</span>
-                <span className="text-xs font-mono font-normal text-slate-500 ml-2">({getHistoryByPerspective(perspective).length} items)</span>
+                <span className="text-xs font-mono font-normal text-slate-500 ml-2">({history.length} items)</span>
               </h2>
               {history.length > 0 && (
                 <button
@@ -672,14 +603,14 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden min-h-[300px]">
-              {getHistoryByPerspective(perspective).length === 0 ? (
+              {history.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                   <History className="h-8 w-8 mb-2 opacity-50" />
                   <p className="text-sm">No reading history yet.</p>
                   <p className="text-xs text-slate-600 mt-1">Articles you read will appear here.</p>
                 </div>
               ) : (
-                getHistoryByPerspective(perspective).map((item) => (
+                history.map((item) => (
                   <div key={item.articleId} className="relative border-b border-slate-800">
                     <a
                       href={item.articleUrl}
@@ -695,7 +626,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                           {new Date(item.readAt).toLocaleString()}
                         </span>
                       </div>
-                      <h3 className="text-sm font-medium text-slate-400 group-hover:text-blue-400 transition-colors mb-2 line-clamp-2">
+                      <h3 className="text-sm font-medium text-slate-400 group-hover:text-red-400 transition-colors mb-2 line-clamp-2">
                         {item.articleTitle}
                       </h3>
                       <div className="flex items-center gap-2">
@@ -730,7 +661,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                     <XAxis dataKey="name" stroke="#64748b" fontSize={10} tick={{ fontSize: 10 }} />
                     <YAxis stroke="#64748b" fontSize={10} tick={{ fontSize: 10 }} width={30} />
                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} itemStyle={{ color: '#e2e8f0' }} />
-                    <Line type="monotone" dataKey="volume" stroke="#3b82f6" strokeWidth={2} dot={false} name="Volume" />
+                    <Line type="monotone" dataKey="volume" stroke="#ef4444" strokeWidth={2} dot={false} name="Volume" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -745,7 +676,7 @@ export default function Dashboard({ perspective, onSwitchPerspective }: Dashboar
                     <XAxis type="number" stroke="#64748b" fontSize={10} tick={{ fontSize: 10 }} />
                     <YAxis dataKey="topic" type="category" stroke="#94a3b8" fontSize={10} tick={{ fontSize: 10 }} width={80} />
                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} cursor={{ fill: '#1e293b' }} />
-                    <Bar dataKey="value" fill={perspective === 'right' ? '#6366f1' : '#3b82f6'} radius={[0, 4, 4, 0]} name="Articles %" />
+                    <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} name="Articles %" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

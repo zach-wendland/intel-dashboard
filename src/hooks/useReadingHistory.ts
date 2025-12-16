@@ -6,7 +6,6 @@ export interface ReadingHistoryItem {
   articleUrl: string;
   source: string;
   readAt: Date;
-  perspective: 'right' | 'left';
 }
 
 const MAX_HISTORY_ITEMS = 100;
@@ -41,8 +40,7 @@ export function useReadingHistory() {
     articleId: string,
     articleTitle: string,
     articleUrl: string,
-    source: string,
-    perspective: 'right' | 'left'
+    source: string
   ) => {
     setHistory(prev => {
       // Remove existing entry for same article
@@ -54,8 +52,7 @@ export function useReadingHistory() {
         articleTitle,
         articleUrl,
         source,
-        readAt: new Date(),
-        perspective
+        readAt: new Date()
       };
 
       // Keep only the last MAX_HISTORY_ITEMS
@@ -73,15 +70,10 @@ export function useReadingHistory() {
     return history.some(item => item.articleId === articleId);
   }, [history]);
 
-  const getHistoryByPerspective = useCallback((perspective: 'right' | 'left') => {
-    return history.filter(item => item.perspective === perspective);
-  }, [history]);
-
   return {
     history,
     addToHistory,
     clearHistory,
-    hasRead,
-    getHistoryByPerspective
+    hasRead
   };
 }

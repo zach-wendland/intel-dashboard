@@ -4,23 +4,20 @@ import {
   BookmarkCheck
 } from 'lucide-react';
 import type { FeedItem as FeedItemType } from '../../services/feedService';
-import type { Perspective } from '../Dashboard';
 
 interface FeedItemProps {
   item: FeedItemType;
   isBookmarked: boolean;
   hasRead: boolean;
-  perspective: Perspective;
   onBookmark: (id: string) => void;
   onRemoveBookmark: (id: string) => void;
-  onRead: (id: string, title: string, url: string, source: string, perspective: Perspective) => void;
+  onRead: (id: string, title: string, url: string, source: string) => void;
 }
 
 export function FeedItemCard({
   item,
   isBookmarked,
   hasRead,
-  perspective,
   onBookmark,
   onRemoveBookmark,
   onRead
@@ -31,18 +28,18 @@ export function FeedItemCard({
         href={item.url}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={() => onRead(item.id, item.title, item.url, item.source, perspective)}
+        onClick={() => onRead(item.id, item.title, item.url, item.source)}
         className="block p-3 sm:p-4 hover:bg-slate-800/80 transition-all group cursor-pointer pr-12 sm:pr-16 active:bg-slate-800/60"
       >
         <div className="flex justify-between items-start mb-1 gap-2">
-          <span className="text-[10px] sm:text-xs font-mono text-blue-400 bg-blue-900/10 px-1.5 py-0.5 rounded truncate max-w-[120px] sm:max-w-none">
+          <span className="text-[10px] sm:text-xs font-mono text-red-400 bg-red-900/10 px-1.5 py-0.5 rounded truncate max-w-[120px] sm:max-w-none">
             {item.topic.toUpperCase()}
           </span>
           <span className="text-[10px] sm:text-xs font-mono text-slate-500 flex-shrink-0">
             {item.time}
           </span>
         </div>
-        <h3 className={`text-sm font-medium ${hasRead ? 'text-slate-400' : 'text-slate-200'} group-hover:text-blue-400 transition-colors mb-2 pr-4 sm:pr-6 line-clamp-3 sm:line-clamp-2`}>
+        <h3 className={`text-sm font-medium ${hasRead ? 'text-slate-400' : 'text-slate-200'} group-hover:text-red-400 transition-colors mb-2 pr-4 sm:pr-6 line-clamp-3 sm:line-clamp-2`}>
           {item.title}
         </h3>
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -56,7 +53,7 @@ export function FeedItemCard({
             <span className="text-xs font-mono text-slate-600">FRESHNESS:</span>
             <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
-                className={`h-full ${perspective === 'right' ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}
+                className="h-full bg-gradient-to-r from-red-500 to-yellow-500"
                 style={{ width: `${item.velocity}%` }}
               ></div>
             </div>
