@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
 
 // Lazy load the dashboard component for code splitting
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -17,8 +18,10 @@ function DashboardLoader() {
 
 export default function App() {
   return (
-    <Suspense fallback={<DashboardLoader />}>
-      <Dashboard />
-    </Suspense>
+    <AuthProvider>
+      <Suspense fallback={<DashboardLoader />}>
+        <Dashboard />
+      </Suspense>
+    </AuthProvider>
   );
 }

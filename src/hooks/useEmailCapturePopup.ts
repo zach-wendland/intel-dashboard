@@ -26,11 +26,16 @@ export function useEmailCapturePopup() {
 
   const handleSubmit = async (email: string) => {
     // Try to save to Supabase first
-    const { error } = await saveEmailSignup(email, 'popup');
+    const result = await saveEmailSignup(email, 'popup');
 
-    if (error) {
-      // Fallback to localStorage if Supabase fails
-      console.warn('Supabase error, falling back to localStorage:', error);
+    // Check for rate limiting
+    if ('rateLimited' in result && result.rateLimited) {
+      throw new Error(result.error?.message || 'Too many attempts');
+    }
+
+    if (result.error && !('rateLimited' in result)) {
+      // Fallback to localStorage if Supabase fails (but not rate limited)
+      console.warn('Supabase error, falling back to localStorage:', result.error);
       const emails = JSON.parse(localStorage.getItem('email_signups') || '[]');
       emails.push({
         email,

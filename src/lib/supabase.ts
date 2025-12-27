@@ -97,10 +97,52 @@ export async function getCurrentUser() {
   return { user, error };
 }
 
+// Rate limiting helper
+const RATE_LIMIT_KEY = 'email_signup_attempts';
+const RATE_LIMIT_MAX = 3;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function checkClientRateLimit(): boolean {
+  try {
+    const stored = localStorage.getItem(RATE_LIMIT_KEY);
+    if (!stored) return true;
+
+    const attempts: number[] = JSON.parse(stored);
+    const now = Date.now();
+    const recentAttempts = attempts.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+
+    return recentAttempts.length < RATE_LIMIT_MAX;
+  } catch {
+    return true;
+  }
+}
+
+function recordSignupAttempt(): void {
+  try {
+    const stored = localStorage.getItem(RATE_LIMIT_KEY);
+    const attempts: number[] = stored ? JSON.parse(stored) : [];
+    const now = Date.now();
+
+    // Keep only recent attempts
+    const recentAttempts = attempts.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    recentAttempts.push(now);
+
+    localStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(recentAttempts));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 // Helper functions for database operations
 export async function saveEmailSignup(email: string, source: string = 'popup') {
+  // Check client-side rate limit
+  if (!checkClientRateLimit()) {
+    return { data: null, error: { message: 'Too many signup attempts. Please try again later.' }, rateLimited: true };
+  }
+
   if (!isSupabaseConfigured) {
     console.warn('Supabase not configured - email signup will use localStorage fallback');
+    recordSignupAttempt();
     return { data: null, error: { message: 'Supabase not configured' } };
   }
 
@@ -110,6 +152,10 @@ export async function saveEmailSignup(email: string, source: string = 'popup') {
       .insert([{ email, source, subscribed: true }])
       .select()
       .single();
+
+    if (!error) {
+      recordSignupAttempt();
+    }
 
     return { data, error };
   } catch (e) {

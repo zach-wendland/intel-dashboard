@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from './useAuth';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface ReadingHistoryItem {
   articleId: string;
@@ -28,15 +30,73 @@ function loadHistoryFromStorage(): ReadingHistoryItem[] {
 }
 
 export function useReadingHistory() {
-  // Use lazy initializer to load synchronously on first render
+  const { user } = useAuth();
   const [history, setHistory] = useState<ReadingHistoryItem[]>(loadHistoryFromStorage);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Save history to localStorage whenever it changes
+  // Sync with Supabase when user logs in
+  useEffect(() => {
+    if (!user || !isSupabaseConfigured) return;
+
+    const syncHistory = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('reading_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('read_at', { ascending: false })
+          .limit(MAX_HISTORY_ITEMS);
+
+        if (error) throw error;
+
+        if (data) {
+          const cloudHistory: ReadingHistoryItem[] = data.map(h => ({
+            articleId: h.article_id,
+            articleTitle: h.article_title,
+            articleUrl: h.article_url,
+            source: h.source,
+            readAt: new Date(h.read_at)
+          }));
+
+          // Merge local and cloud history (cloud takes precedence)
+          const localHistory = loadHistoryFromStorage();
+          const cloudIds = new Set(cloudHistory.map(h => h.articleId));
+          const uniqueLocal = localHistory.filter(h => !cloudIds.has(h.articleId));
+
+          // Upload unique local history to cloud (just recent ones)
+          for (const local of uniqueLocal.slice(0, 20)) {
+            await supabase.from('reading_history').upsert({
+              user_id: user.id,
+              article_id: local.articleId,
+              article_title: local.articleTitle,
+              article_url: local.articleUrl,
+              source: local.source,
+              read_at: local.readAt.toISOString()
+            }, { onConflict: 'user_id,article_id' });
+          }
+
+          setHistory([...cloudHistory, ...uniqueLocal]
+            .sort((a, b) => b.readAt.getTime() - a.readAt.getTime())
+            .slice(0, MAX_HISTORY_ITEMS)
+          );
+        }
+      } catch (e) {
+        console.error('Failed to sync reading history', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    syncHistory();
+  }, [user]);
+
+  // Save history to localStorage as backup
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
 
-  const addToHistory = useCallback((
+  const addToHistory = useCallback(async (
     articleId: string,
     articleTitle: string,
     articleUrl: string,
@@ -56,15 +116,39 @@ export function useReadingHistory() {
       };
 
       // Keep only the last MAX_HISTORY_ITEMS
-      const updated = [newItem, ...filtered].slice(0, MAX_HISTORY_ITEMS);
-      return updated;
+      return [newItem, ...filtered].slice(0, MAX_HISTORY_ITEMS);
     });
-  }, []);
 
-  const clearHistory = useCallback(() => {
+    // Sync to Supabase if logged in
+    if (user && isSupabaseConfigured) {
+      try {
+        await supabase.from('reading_history').upsert({
+          user_id: user.id,
+          article_id: articleId,
+          article_title: articleTitle,
+          article_url: articleUrl,
+          source,
+          read_at: new Date().toISOString()
+        }, { onConflict: 'user_id,article_id' });
+      } catch (e) {
+        console.error('Failed to sync history to cloud', e);
+      }
+    }
+  }, [user]);
+
+  const clearHistory = useCallback(async () => {
     localStorage.removeItem(STORAGE_KEY);
     setHistory([]);
-  }, []);
+
+    // Clear from Supabase if logged in
+    if (user && isSupabaseConfigured) {
+      try {
+        await supabase.from('reading_history').delete().eq('user_id', user.id);
+      } catch (e) {
+        console.error('Failed to clear history from cloud', e);
+      }
+    }
+  }, [user]);
 
   const hasRead = useCallback((articleId: string): boolean => {
     return history.some(item => item.articleId === articleId);
@@ -74,6 +158,7 @@ export function useReadingHistory() {
     history,
     addToHistory,
     clearHistory,
-    hasRead
+    hasRead,
+    isLoading
   };
 }

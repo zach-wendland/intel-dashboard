@@ -47,6 +47,8 @@ import { EmailCapturePopup } from './ui/EmailCapturePopup';
 import { useEmailCapturePopup } from '../hooks/useEmailCapturePopup';
 import { PremiumBanner } from './ui/PremiumBanner';
 import { Toaster } from 'react-hot-toast';
+import { AuthModal } from './ui/AuthModal';
+import { UserMenu } from './ui/UserMenu';
 
 // Import America First configuration
 import { RIGHT_LIVE_FEEDS as AMERICA_FIRST_LIVE_FEEDS } from '../config/americaFirstSources';
@@ -153,6 +155,7 @@ export default function Dashboard() {
   const [errorMessages, setErrorMessages] = useState<Record<string | number, string>>({});
   const [mediaSettings, setMediaSettings] = useState<MediaSettings>(DEFAULT_MEDIA_SETTINGS);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
 
   // Use modular hooks for search, trending, bookmarks, and history
   const { filters, updateFilter, resetFilters, filteredFeed, resultCount, presets, savePreset, loadPreset, deletePreset } = useSearch(feed);
@@ -203,6 +206,11 @@ export default function Dashboard() {
       {/* Email capture popup */}
       {showPopup && (
         <EmailCapturePopup onClose={handleClose} onSubmit={handleSubmit} />
+      )}
+
+      {/* Auth modal */}
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
       )}
 
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-20">
@@ -266,6 +274,7 @@ export default function Dashboard() {
               </span>
               FEEDS: {metrics.okCount}/{metrics.totalCount}
             </div>
+            <UserMenu onSignInClick={() => setShowAuthModal(true)} />
           </div>
 
           {/* Mobile action buttons */}
