@@ -43,6 +43,10 @@ import type { MediaSettings } from '../types';
 import { MediaView } from './views/MediaView';
 import { FeedItemCard } from './ui/FeedItem';
 import { LiveStreamsView } from './views/LiveStreamsView';
+import { EmailCapturePopup } from './ui/EmailCapturePopup';
+import { useEmailCapturePopup } from '../hooks/useEmailCapturePopup';
+import { PremiumBanner } from './ui/PremiumBanner';
+import { Toaster } from 'react-hot-toast';
 
 // Import America First configuration
 import { RIGHT_LIVE_FEEDS as AMERICA_FIRST_LIVE_FEEDS } from '../config/americaFirstSources';
@@ -160,6 +164,9 @@ export default function Dashboard() {
   const chartData = trendingChartData;
   const narrativeData = trendingNarrativeData;
 
+  // Email capture popup
+  const { showPopup, handleClose, handleSubmit } = useEmailCapturePopup();
+
   const fetchLiveFeed = useCallback(async () => {
     setIsRefreshing(true);
     setErrorMessages({});
@@ -190,6 +197,14 @@ export default function Dashboard() {
 
   return (
     <div className={`min-h-screen bg-slate-950 text-slate-200 font-sans ${CONFIG.selectionColor} selection:text-white`}>
+      {/* Toast notifications */}
+      <Toaster position="top-center" />
+
+      {/* Email capture popup */}
+      {showPopup && (
+        <EmailCapturePopup onClose={handleClose} onSubmit={handleSubmit} />
+      )}
+
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           {/* Logo and title */}
@@ -328,6 +343,9 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* Premium Banner - shown on all tabs */}
+        <PremiumBanner />
+
         {activeTab === 'grid' && <LiveStreamsView />}
 
         {activeTab === 'feed' && (

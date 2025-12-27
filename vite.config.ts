@@ -11,7 +11,8 @@ export default defineConfig({
           // Vendor chunks for better caching
           'react-vendor': ['react', 'react-dom'],
           'chart-vendor': ['recharts'],
-          'icon-vendor': ['lucide-react']
+          'icon-vendor': ['lucide-react'],
+          'supabase-vendor': ['@supabase/supabase-js']
         }
       }
     },
@@ -22,6 +23,13 @@ export default defineConfig({
   },
   // Optimize dependencies
   optimizeDeps: {
-    include: ['react', 'react-dom', 'recharts', 'lucide-react']
+    include: [
+      'react',
+      'react-dom',
+      'recharts',
+      'lucide-react',
+      'react-hot-toast',
+      '@supabase/supabase-js'
+    ]
   }
 })
